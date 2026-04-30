@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Cuidador Dengue</title>
+    <!-- Aqui chamamos o arquivo CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- SIDEBAR ESQUERDA -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="avatar" style="background-color: #6e7881;">👤</div>
+                <div class="header-icons">
+                    <span class="icon-action" id="theme-toggle" title="Alternar Tema">🔆</span>
+                    <span class="icon-action" onclick="abrirModalInput('Novo Paciente')" title="Novo Paciente">➕</span>
+                </div>
+            </div>
+
+            <div class="search-area">
+                <div class="search-box">
+                    <span style="color: var(--text-secondary);">🔍</span>
+                    <input type="text" placeholder="Pesquisar conversa">
+                </div>
+            </div>
+
+            <!-- Preenchido dinamicamente pelo Mock/Supabase -->
+            <div class="contact-list" id="contact-list"></div>
+        </div>
+
+        <!-- ÁREA PRINCIPAL DIREITA -->
+        <!-- TELA VAZIA -->
+        <div id="blank-state" class="blank-state">
+            <div style="font-size: 80px; color: var(--text-secondary);">💻</div>
+            <h1>Assistente Cuidador Integrado</h1>
+            <p>Selecione uma conversa ao lado para iniciar a interação.</p>
+        </div>
+
+        <!-- ÁREA DE CHAT -->
+        <div id="chat-area" class="chat-area" style="display: none;">
+            <div class="chat-bg"></div>
+            
+            <div class="chat-header">
+                <div class="chat-info">
+                    <div class="avatar" id="header-avatar"></div>
+                    <h2 id="header-name">Carregando...</h2>
+                </div>
+                <div class="header-icons">
+                    <span class="icon-action" onclick="abrirChamada('video')" title="Videochamada">🎥</span>
+                    <span class="icon-action" onclick="abrirChamada('audio')" title="Chamada de Voz">📞</span>
+                    <span class="icon-action" onclick="toggleDropdown('chat-dropdown', event)">⋮</span>
+                </div>
+            </div>
+
+            <!-- MENU DO CHAT DIREITO -->
+            <div id="chat-dropdown" class="dropdown">
+                <div class="dropdown-item" onclick="limparMensagens()">Limpar mensagens</div>
+                <div class="dropdown-item text-danger" onclick="apagarConversa()">Apagar paciente</div>
+            </div>
+            
+            <!-- CAIXA DE MENSAGENS -->
+            <div class="messages-container" id="chat-box"></div>
+
+            <!-- MENUS FLUTUANTES DE EMOJIS -->
+            <div id="emoji-picker" class="emoji-picker">
+                <div class="emoji-item" onclick="inserirEmoji('😀')">😀</div>
+                <div class="emoji-item" onclick="inserirEmoji('😥')">😥</div>
+                <div class="emoji-item" onclick="inserirEmoji('🤒')">🤒</div>
+                <div class="emoji-item" onclick="inserirEmoji('🤕')">🤕</div>
+                <div class="emoji-item" onclick="inserirEmoji('🙏')">🙏</div>
+                <div class="emoji-item" onclick="inserirEmoji('👍')">👍</div>
+                <div class="emoji-item" onclick="inserirEmoji('💊')">💊</div>
+                <div class="emoji-item" onclick="inserirEmoji('💧')">💧</div>
+                <div class="emoji-item" onclick="inserirEmoji('🦟')">🦟</div>
+                <div class="emoji-item" onclick="inserirEmoji('🩺')">🩺</div>
+            </div>
+
+            <!-- BARRA DE DIGITAÇÃO -->
+            <div class="input-area">
+                <span id="btn-emoji" class="icon-action" onclick="toggleDropdown('emoji-picker', event)">😀</span>
+                
+                <div id="input-wrapper" class="input-wrapper">
+                    <input type="text" id="input-msg" class="message-input" placeholder="Digite uma mensagem..." autocomplete="off">
+                </div>
+
+                <span id="btn-action" class="icon-action" style="background-color: #00a884; color: white;" onclick="enviarTexto()">➤</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAIS -->
+    <div id="input-modal" class="overlay">
+        <div class="modal-box">
+            <h2 id="modal-title">Novo</h2>
+            <input type="text" id="modal-input" placeholder="Digite o nome (seu simulador)..." autocomplete="off">
+            <div class="modal-btns">
+                <button class="btn btn-cancel" onclick="fecharModais()">Cancelar</button>
+                <button class="btn btn-ok" onclick="criarSessaoSimulada()">Criar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="call-modal" class="overlay call-screen">
+        <div id="call-avatar" class="avatar">👤</div>
+        <h1 id="call-name" style="margin-bottom: 10px;">Nome</h1>
+        <p id="call-status" style="color: var(--text-secondary);">Chamando...</p>
+        <button class="btn-hangup" onclick="fecharModais()">☎</button>
+    </div>
+
+    <!-- Aqui chamamos o arquivo JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
