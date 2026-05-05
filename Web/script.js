@@ -2,17 +2,40 @@
 // PARTE 1: MOCK DO BANCO DE DADOS (PREPARAÇÃO PARA SUPABASE)
 // =====================================================================
 
-const appState = {
+const STORAGE_KEY = 'denguecare_appState';
+
+const estadoPadrao = {
     sessaoAtualId: null,
     sessoes:[
         {
             id: 'paciente_1',
-            nomePaciente: 'Carlos Santos (Simulação)',
-            avatarBg: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+            nomePaciente: 'DengueCare',
+            avatarBg: 'url("../images/Logo01.png")',
             mensagens: [] // Array 100% limpo, aguardando o paciente começar
         }
     ]
 };
+
+function carregarDoStorage() {
+    try {
+        const dados = localStorage.getItem(STORAGE_KEY);
+        if (dados) return JSON.parse(dados);
+    } catch(e) {
+        console.warn('Erro ao carregar dados salvos:', e);
+    }
+    return null;
+}
+
+function salvarNoStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+    } catch(e) {
+        console.warn('Erro ao salvar dados:', e);
+    }
+}
+
+// Carrega estado salvo ou usa o padrão
+const appState = carregarDoStorage() || JSON.parse(JSON.stringify(estadoPadrao));
 
 async function dbGetSessoes() {
     return appState.sessoes;
@@ -26,6 +49,7 @@ async function dbCriarSessao(nomePaciente, avatarBg) {
         mensagens:[] // Novas conversas nascem totalmente limpas
     };
     appState.sessoes.unshift(novaSessao);
+    salvarNoStorage();
     return novaSessao;
 }
 
@@ -35,16 +59,19 @@ async function dbSalvarMensagem(sessaoId, texto, tipo) {
     
     const novaMsg = { id: 'msg_' + Date.now(), texto, tipo, timestamp: getHoraAtual() };
     sessao.mensagens.push(novaMsg);
+    salvarNoStorage();
     return novaMsg;
 }
 
 async function dbApagarSessao(sessaoId) {
     appState.sessoes = appState.sessoes.filter(s => s.id !== sessaoId);
+    salvarNoStorage();
 }
 
 async function dbLimparMensagens(sessaoId) {
     const sessao = appState.sessoes.find(s => s.id === sessaoId);
     if (sessao) sessao.mensagens =[];
+    salvarNoStorage();
 }
 
 // =====================================================================
@@ -201,7 +228,7 @@ async function criarSessaoSimulada() {
     if (nome !== '') {
         const cores =['#FF8008', '#11998e', '#4CB8C4', '#8A2387'];
         const corRandom = cores[Math.floor(Math.random() * cores.length)];
-        const bgGradient = `linear-gradient(135deg, ${corRandom} 0%, #3CD3AD 100%)`;
+        const bgGradient = 'url("../images/Logo01.png")';
 
         const novaSessao = await dbCriarSessao(nome, bgGradient);
         fecharModais();
