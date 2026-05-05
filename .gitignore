@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments (O diretório onde o Python instala as libs)
+.venv/
+venv/
+ENV/
+env/
+
+# Configurações de Segurança (CRUCIAL)
+# Nunca suba suas credenciais do Supabase para o GitHub
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# Machine Learning & Data Science
+# Não subimos bases de dados gigantes ou modelos pesados se houver limite de espaço
+*.csv
+*.json
+*.log
+models_ml/*.pkl
+models_ml/*.joblib
+
+# Testes e Relatórios
+.locust/
+*.html
+*.pdf
+.pytest_cache/

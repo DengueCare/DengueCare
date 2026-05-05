@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.schemas.pydantic_models import ChatRequest, ChatResponse
-from app.services.ml_service import predict_risk_score
+from app.services.ml_service import predict_risk_score_mock # <-- Import atualizado
 
 router = APIRouter()
 
@@ -11,7 +11,6 @@ async def process_chat_message(request: ChatRequest):
     """
     user_message = request.mensagem.strip()
     
-    # Tratamento de Exceções [RNF-03]
     if not user_message.isdigit():
         return ChatResponse(
             status="error",
@@ -20,22 +19,17 @@ async def process_chat_message(request: ChatRequest):
         )
     
     try:
-        # Extração simulada do banco de dados baseada no telefone do paciente
-        # Aqui, seria necessário fazer um SELECT no SQLAlchemy para pegar dt_sin_pri, comorbidades, etc.
-        features_baseline = [5, 1, 0, 0] # Exemplo: 5 dias de sintoma, diabético, etc.
-        
-        # Adicionar a resposta atual à matriz de features
+        features_baseline = [5, 1, 0, 0]
         current_features = [features_baseline + [int(user_message)]]
         
-        # Inferência do Modelo (Sprint 1)
-        risk_group = predict_risk_score(current_features)
+        # Chamada atualizada para o mock assíncrono do teste de carga
+        risk_group = await predict_risk_score_mock(current_features)
         
-        # Lógica de resposta baseada no risco gerado
         requires_action = risk_group in ["C", "D"]
         if requires_action:
-            bot_reply = "⚠️ Alerta Médico: O sistema detectou sinais de alarme. Por favor, dirija-se IMEDIATAMENTE à UPA ou Unidade de Saúde mais próxima. A equipe já foi notificada."
+            bot_reply = "⚠️ Alerta Médico: O sistema detectou sinais de alarme. Por favor, dirija-se IMEDIATAMENTE à UPA ou Unidade de Saúde mais próxima."
         else:
-            bot_reply = "Obrigado por informar. Seu quadro está estável. Lembre-se de manter a hidratação constante. Entraremos em contato amanhã."
+            bot_reply = "Obrigado por informar. Seu quadro está estável. Lembre-se de manter a hidratação constante."
 
         return ChatResponse(
             status="success",
