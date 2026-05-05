@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,14 +8,15 @@
     <!-- Aqui chamamos o arquivo CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
     <div class="app-container">
-        
+
         <!-- SIDEBAR ESQUERDA -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <div class="avatar" style="background-color: #6e7881;">👤</div>
+                <div class="avatar" style="background-image: url('../images/Logo01.png');"></div>
                 <div class="header-icons">
                     <span class="icon-action" id="theme-toggle" title="Alternar Tema">🔆</span>
                     <span class="icon-action" onclick="abrirModalInput('Novo Paciente')" title="Novo Paciente">➕</span>
@@ -43,7 +45,7 @@
         <!-- ÁREA DE CHAT -->
         <div id="chat-area" class="chat-area" style="display: none;">
             <div class="chat-bg"></div>
-            
+
             <div class="chat-header">
                 <div class="chat-info">
                     <div class="avatar" id="header-avatar"></div>
@@ -61,7 +63,7 @@
                 <div class="dropdown-item" onclick="limparMensagens()">Limpar mensagens</div>
                 <div class="dropdown-item text-danger" onclick="apagarConversa()">Apagar paciente</div>
             </div>
-            
+
             <!-- CAIXA DE MENSAGENS -->
             <div class="messages-container" id="chat-box"></div>
 
@@ -82,12 +84,14 @@
             <!-- BARRA DE DIGITAÇÃO -->
             <div class="input-area">
                 <span id="btn-emoji" class="icon-action" onclick="toggleDropdown('emoji-picker', event)">😀</span>
-                
+
                 <div id="input-wrapper" class="input-wrapper">
-                    <input type="text" id="input-msg" class="message-input" placeholder="Digite uma mensagem..." autocomplete="off">
+                    <input type="text" id="input-msg" class="message-input" placeholder="Digite uma mensagem..."
+                        autocomplete="off">
                 </div>
 
-                <span id="btn-action" class="icon-action" style="background-color: #00a884; color: white;" onclick="enviarTexto()">➤</span>
+                <span id="btn-action" class="icon-action" style="background-color: #00a884; color: white;"
+                    onclick="enviarTexto()">➤</span>
             </div>
         </div>
     </div>
@@ -105,7 +109,7 @@
     </div>
 
     <div id="call-modal" class="overlay call-screen">
-        <div id="call-avatar" class="avatar">👤</div>
+        <div id="call-avatar" class="avatar"></div>
         <h1 id="call-name" style="margin-bottom: 10px;">Nome</h1>
         <p id="call-status" style="color: var(--text-secondary);">Chamando...</p>
         <button class="btn-hangup" onclick="fecharModais()">☎</button>
@@ -114,4 +118,5 @@
     <!-- Aqui chamamos o arquivo JavaScript -->
     <script src="script.js"></script>
 </body>
+
 </html>
