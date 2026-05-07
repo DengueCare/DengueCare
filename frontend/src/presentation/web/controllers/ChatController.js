@@ -136,32 +136,71 @@ export class ChatController {
         
         this.inputMsg.value = '';
         
+        // 1. Renderiza e salva a mensagem do usuário no front-end
         const sessaoAtualId = await this.getCurrentSessionId.execute();
         const msgSalva = await this.sendChatMessage.execute(sessaoAtualId, texto, 'sent', this.getHoraAtual());
         this.renderizarMensagemNaTela(msgSalva);
         await this.carregarSessoes(); 
 
-        const sessoes = await this.getChatSessions.execute();
-        const sessao = sessoes.find(s => s.id === sessaoAtualId);
-        const qtdMensagensPaciente = sessao.mensagens.filter(m => m.tipo === 'sent').length;
+        // 2. Integração com o Backend: Chamada HTTP para a API Preditiva
+        try {
+            const response = await fetch('http://localhost:8000/api/v1/chat/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    telefone: "00000000000", // Placeholder estrutural exigido pelo backend
+                    mensagem: texto
+                })
+            });
 
-        setTimeout(async () => {
-            let respostaBot = "";
-            if (qtdMensagensPaciente === 1) {
-                respostaBot = "Olá! Sou o assistente cuidador virtual. Para acessarmos o seu diagnóstico e iniciarmos o acompanhamento, por favor, digite o seu CPF ou Número de Identificação.";
-            } else {
-                respostaBot = "Entendido. Registrei essa informação no seu prontuário. Lembre-se de manter o repouso e a hidratação!";
+            if (!response.ok) {
+                throw new Error(`Servidor retornou status ${response.status}`);
             }
 
+            // 3. Processa o JSON retornado pela IA
+            const data = await response.json();
+
+            // 4. Renderiza a resposta do Bot na interface
             const sessaoAtualIdNow = await this.getCurrentSessionId.execute();
+            
             if (sessaoAtualIdNow === sessaoAtualId) {
-                const msgRecebida = await this.sendChatMessage.execute(sessaoAtualId, respostaBot, 'received', this.getHoraAtual());
+                const msgRecebida = await this.sendChatMessage.execute(sessaoAtualId, data.reply, 'received', this.getHoraAtual());
                 this.renderizarMensagemNaTela(msgRecebida);
+                
+                // Triggers visuais de emergência baseados no Risco Clínico
+                if (data.requires_action) {
+                    const alertaCritico = await this.sendChatMessage.execute(
+                        sessaoAtualId, 
+                        "PROTOCOLO DE EMERGÊNCIA ACIONADO", 
+                        'system', 
+                        this.getHoraAtual()
+                    );
+                    this.renderizarMensagemNaTela(alertaCritico);
+                }
+                
                 await this.carregarSessoes();
             } else {
-                await this.sendChatMessage.execute(sessaoAtualId, respostaBot, 'received', this.getHoraAtual());
+                // Caso o usuário tenha trocado de aba enquanto o servidor processava
+                await this.sendChatMessage.execute(sessaoAtualId, data.reply, 'received', this.getHoraAtual());
             }
-        }, 1200);
+
+        } catch (error) {
+            console.error("Erro na comunicação com o motor de inferência:", error);
+            
+            // Fallback de segurança (Fail-Safe)
+            if (await this.getCurrentSessionId.execute() === sessaoAtualId) {
+                const msgErro = await this.sendChatMessage.execute(
+                    sessaoAtualId, 
+                    "⚠️ Sistema de IA indisponível. Se você apresenta sinais de alarme, vá imediatamente à UPA.", 
+                    'received', 
+                    this.getHoraAtual()
+                );
+                this.renderizarMensagemNaTela(msgErro);
+                await this.carregarSessoes();
+            }
+        }
     }
 
     fecharDropdowns() {
