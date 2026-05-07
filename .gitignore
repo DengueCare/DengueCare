@@ -27,6 +27,5 @@ models_ml/*.joblib
 
 # Testes e Relatórios
 .locust/
-*.html
 *.pdf
 .pytest_cache/
