@@ -1,11 +1,9 @@
-[README.md](https://github.com/user-attachments/files/27308809/README.md)
+[README.md](https://github.com/user-attachments/files/27477016/README.md)
 # 🦟 DengueCare AI
 
 <!-- Badges -->
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.4+-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
-![WhatsApp](https://img.shields.io/badge/WhatsApp_API-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)
-![License](https://img.shields.io/badge/Licença-MIT-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Em_Desenvolvimento-yellow?style=for-the-badge)
 ![Fatec](https://img.shields.io/badge/Fatec-Rio_Claro-003087?style=for-the-badge)
 
@@ -14,7 +12,7 @@
 ║                                                          ║
 ║    🦟  D E N G U E C A R E   A I                        ║
 ║                                                          ║
-║    Telemonitoramento Preditivo via WhatsApp              ║
+║    Telemonitoramento Preditivo com Chatbot Próprio       ║
 ║    Prevenindo agravamentos. Salvando vidas.              ║
 ║                                                          ║
 ║    [ Substituir por banner do projeto ]                  ║
@@ -22,7 +20,7 @@
 ╚══════════════════════════════════════════════════════════╝
 ```
 
-> **Sistema de telemonitoramento preditivo integrado ao WhatsApp** que acompanha
+> **Sistema de telemonitoramento preditivo com chatbot próprio** que acompanha
 > diariamente pacientes com suspeita ou diagnóstico de dengue, utilizando Machine
 > Learning treinado com dados reais do SINAN para identificar silenciosamente sinais
 > de agravamento e emitir alertas em tempo real para equipes médicas da UBS —
@@ -38,10 +36,8 @@
 - [Arquitetura e Fluxo do Sistema](#arquitetura-e-fluxo-do-sistema)
 - [Modelagem de Dados](#modelagem-de-dados)
 - [Como Executar Localmente](#como-executar-localmente)
-- [Estrutura de Pastas](#estrutura-de-pastas)
 - [Roadmap / Sprints](#roadmap--sprints)
 - [Equipe](#equipe)
-- [Licença](#licença)
 - [Conformidade LGPD](#conformidade-lgpd)
 
 ---
@@ -68,11 +64,11 @@ por conta própria, os sinais de alarme que indicam agravamento da doença.
 ### Solução
 
 O **DengueCare AI** automatiza o acompanhamento pós-consulta por meio de um
-chatbot estruturado no WhatsApp — canal já amplamente utilizado pela população.
-Diariamente, o paciente responde a perguntas mapeadas aos sinais de alarme do
-SINAN. Um modelo de Machine Learning processa as respostas e classifica o
-paciente nos **Grupos Clínicos A, B, C ou D** do protocolo do SUS, gerando um
-score de risco exibido em tempo real no Dashboard da UBS.
+chatbot próprio desenvolvido em HTML, CSS e JavaScript. Diariamente, o paciente
+responde a perguntas mapeadas aos sinais de alarme do SINAN. Um modelo de
+Machine Learning processa as respostas e classifica o paciente nos **Grupos
+Clínicos A, B, C ou D** do protocolo do SUS, gerando um score de risco exibido
+em tempo real no Dashboard da UBS.
 
 > **Proposta de valor:** Evitar o agravamento da dengue por meio do monitoramento
 > remoto e contínuo, guiando pacientes de baixo risco ao cuidado domiciliar e
@@ -85,16 +81,16 @@ score de risco exibido em tempo real no Dashboard da UBS.
 | # | Código | Funcionalidade |
 |---|--------|----------------|
 | 1 | `RF-01` | 🩺 **Cadastro médico:** Interface web para registro rápido do paciente com baseline clínica após diagnóstico na UBS |
-| 2 | `RF-02` | 💬 **Chatbot WhatsApp:** Respostas numéricas fechadas, diárias, mapeadas ao Dicionário de Dados do SINAN |
+| 2 | `RF-02` | 💬 **Chatbot próprio:** Respostas numéricas fechadas, diárias, mapeadas ao Dicionário de Dados do SINAN, acessado via aplicação web (HTML, CSS e JavaScript) |
 | 3 | `RF-03` | 🔧 **Pipeline ETL:** Limpeza, transformação e treinamento do modelo com dados reais das fichas SINAN |
 | 4 | `RF-04` | 🤖 **API de Previsão:** Endpoint Python que recebe o array diário de sintomas e retorna o score de risco |
 | 5 | `RF-05` | 📊 **Dashboard de Triagem:** Fila ordenada por gravidade com semáforo visual (🟢 Verde / 🟡 Amarelo / 🔴 Vermelho) |
 
 ### Comportamento por grupo de risco
 
-- 🟢 **Grupo A (Baixo Risco):** Bot envia orientações de hidratação e repouso.
-- 🟡 **Grupo B (Atenção):** Bot alerta sobre sinais a observar; Dashboard destaca o paciente.
-- 🔴 **Grupos C/D (Alto Risco):** Bot orienta retorno imediato à UPA; Dashboard emite alerta vermelho e eleva o paciente ao topo da fila.
+- 🟢 **Grupo A (Baixo Risco):** Chatbot envia orientações de hidratação e repouso.
+- 🟡 **Grupo B (Atenção):** Chatbot alerta sobre sinais a observar; Dashboard destaca o paciente.
+- 🔴 **Grupos C/D (Alto Risco):** Chatbot orienta retorno imediato à UPA; Dashboard emite alerta vermelho e eleva o paciente ao topo da fila.
 
 ---
 
@@ -105,8 +101,7 @@ score de risco exibido em tempo real no Dashboard da UBS.
 | **Backend / ML** | ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white) Scikit-Learn | Modelos: `DecisionTreeClassifier`, `RandomForest` ou `SVM` |
 | **ETL de Dados** | ![Pandas](https://img.shields.io/badge/Pandas-150458?logo=pandas&logoColor=white) Pandas | Limpeza e transformação das fichas SINAN/DataSUS |
 | **Dados** | DataSUS / SINAN | Fichas de dengue do município de Rio Claro |
-| **Mensageria** | ![WhatsApp](https://img.shields.io/badge/WhatsApp_API-25D366?logo=whatsapp&logoColor=white) Twilio / Meta API | Envio e recebimento de mensagens via Webhooks |
-| **Frontend** | Dashboard Web | Fila de pacientes com score de risco em tempo real |
+| **Frontend** | ![HTML](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black) | Chatbot de monitoramento e Dashboard Web (fila de risco) |
 | **Infraestrutura** | ☁️ Cloud | Hospedagem em servidores em nuvem |
 | **Gestão** | ![Trello](https://img.shields.io/badge/Trello-0052CC?logo=trello&logoColor=white) ![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white) | Scrum/Agile — Sprints, Trello e controle de versão |
 
@@ -119,15 +114,15 @@ flowchart TD
     A[👨‍⚕️ Médico UBS] -->|Cadastra paciente| B[Interface Web - RF-01]
     B -->|Salva baseline clínica| C[(Banco de Dados)]
 
-    C -->|Agenda contato diário| D[🤖 Bot WhatsApp - RF-02]
-    D -->|Perguntas fechadas SINAN| E[📱 Paciente]
+    C -->|Agenda contato diário| D[🤖 Chatbot Web - RF-02]
+    D -->|Perguntas fechadas SINAN| E[🖥️ Paciente]
     E -->|Respostas numéricas| D
 
     D -->|Array de sintomas| F[API de Previsão Python - RF-04]
     F -->|ETL + Modelo ML - RF-03| G{Classificação de Risco}
 
-    G -->|Grupo A - Baixo| H[✅ Orientações de repouso e hidratação via bot]
-    G -->|Grupos C/D - Alto| I[🚨 Alerta: retornar à UPA via bot]
+    G -->|Grupo A - Baixo| H[✅ Orientações de repouso e hidratação via chatbot]
+    G -->|Grupos C/D - Alto| I[🚨 Alerta: retornar à UPA via chatbot]
     G -->|Todos os grupos| J[📊 Dashboard - RF-05]
 
     I --> J
@@ -135,56 +130,28 @@ flowchart TD
     J -->|🟡 Amarelo / 🟢 Verde| K
 ```
 
-### Degradação Graciosa
-
-```
-Se WhatsApp API falhar → Dashboard lista pacientes como "Contato Pendente"
-                       → Equipe realiza contato manual
-```
 
 ---
 
 ## 🗄️ Modelagem de Dados
 
+> ⚠️ **Atenção:** Esta seção será atualizada em breve.
+
 ### Tabela `paciente`
+⚠️ATUAL (Mudara no futuro)⚠️
+| Coluna |
+| `id_paciente` |
+|  `nr_usuario` |
+| `nr_carteira` |
 
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `id_paciente` | `UUID` | Identificador único |
-| `nome_anonimizado` | `VARCHAR` | Nome hasheado (LGPD) |
-| `telefone` | `VARCHAR` | Número WhatsApp |
-| `data_nascimento` | `DATE` | Data de nascimento |
-| `ubs_responsavel` | `VARCHAR` | UBS de referência |
-| `data_cadastro` | `TIMESTAMP` | Data/hora do cadastro |
 
-### Tabela `atendimento_inicial`
+### Tabela `atendimento_paciente`
+⚠️ATUAL (Mudara no futuro)⚠️
+| Coluna |
+| `id_atendimento` |
+| `id_chave estrangeira` |
+| `nr_atendimento` |
 
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `id_atendimento` | `UUID` | Identificador único |
-| `id_paciente` | `UUID` | FK → `paciente` |
-| `data_inicio_sintomas` | `DATE` | Dia 1 dos sintomas |
-| `temperatura` | `FLOAT` | Temperatura na triagem (°C) |
-| `pressao_arterial` | `VARCHAR` | Pressão arterial |
-| `grupo_clinico_inicial` | `CHAR(1)` | Grupo A/B/C/D (SUS) |
-| `medico_responsavel` | `VARCHAR` | CRM do médico |
-| `observacoes` | `TEXT` | Notas clínicas livres |
-
-### Tabela `monitoramento_diario`
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `id_monitoramento` | `UUID` | Identificador único |
-| `id_paciente` | `UUID` | FK → `paciente` |
-| `data_resposta` | `TIMESTAMP` | Data/hora da coleta |
-| `dia_doenca` | `INT` | Dia da doença (D1, D2…) |
-| `dor_abdominal` | `BOOLEAN` | Sinal de alarme SINAN |
-| `vomitos_persistentes` | `BOOLEAN` | Sinal de alarme SINAN |
-| `sangramento` | `BOOLEAN` | Sinal de alarme SINAN |
-| `letargia` | `BOOLEAN` | Sinal de alarme SINAN |
-| `temperatura_dia` | `FLOAT` | Temperatura relatada |
-| `score_risco` | `FLOAT` | Score gerado pelo modelo ML (0–1) |
-| `grupo_clinico_previsto` | `CHAR(1)` | Grupo A/B/C/D predito |
 
 ---
 
@@ -194,9 +161,9 @@ Se WhatsApp API falhar → Dashboard lista pacientes como "Contato Pendente"
 
 - Python `3.11+`
 - `pip` ou `pipenv`
-- Conta Twilio ou Meta Business API (para WhatsApp)
 - PostgreSQL `15+` (ou SQLite para desenvolvimento local)
 - Git
+- Navegador moderno (para o chatbot e dashboard em HTML/CSS/JS)
 
 ### 1. Clone o repositório
 
@@ -233,16 +200,6 @@ Edite o arquivo `.env`:
 # Banco de Dados
 DATABASE_URL=postgresql://usuario:senha@localhost:5432/denguecare
 
-# WhatsApp API (escolha um)
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-
-# Meta / WhatsApp Business API (alternativo)
-META_WHATSAPP_TOKEN=EAAxxxxxxx
-META_PHONE_NUMBER_ID=1234567890
-META_VERIFY_TOKEN=seu_token_secreto
-
 # Configurações do Modelo ML
 MODEL_PATH=./models/dengue_classifier.pkl
 RECALL_THRESHOLD=0.95
@@ -273,73 +230,42 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 |---------|-----|
 | API (Swagger) | `http://localhost:8000/docs` |
 | Dashboard Web | `http://localhost:8000/dashboard` |
-| Webhook WhatsApp | `http://localhost:8000/webhook/whatsapp` |
-
-> 💡 **Dica:** Para testar o webhook localmente, utilize o [ngrok](https://ngrok.com/):
-> ```bash
-> ngrok http 8000
-> ```
-> Configure a URL gerada como endpoint no painel Twilio ou Meta.
+| Chatbot | `http://localhost:8000/chatbot` |
 
 ---
 
-## 📁 Estrutura de Pastas
+## 🗓️ Roadmap / Sprints
 
 ```
-DengueCare/
+Sprint 1 ──────────────────────────────────────────────── [Em andamento]
 │
-├── 📂 app/                         # Aplicação principal (FastAPI/Flask)
-│   ├── main.py                     # Ponto de entrada da API
-│   ├── routes/                     # Endpoints REST
-│   │   ├── patients.py             # CRUD de pacientes
-│   │   ├── monitoring.py           # Monitoramento diário
-│   │   └── webhook.py              # Webhook WhatsApp
-│   ├── services/                   # Regras de negócio
-│   │   ├── risk_score.py           # Chamada ao modelo ML
-│   │   ├── whatsapp_bot.py         # Lógica do chatbot
-│   │   └── alert_service.py        # Emissão de alertas
-│   └── models/                     # Schemas / ORM
+├── 🔬 ETL & Dados
+│   ├── [ ] Download e inspeção das fichas SINAN de Rio Claro
+│   ├── [ ] Limpeza e anonimização (LGPD)
+│   ├── [ ] Engenharia de features (sinais de alarme)
+│   └── [ ] Treinamento inicial do modelo (baseline)
 │
-├── 📂 ml/                          # Machine Learning
-│   ├── train_model.py              # Treinamento e avaliação
-│   ├── predict.py                  # Inferência
-│   └── evaluate.py                 # Métricas (recall, precision, F1)
+├── 🗄️ Banco de Dados
+│   ├── [ ] Definição do schema (paciente, atendimento, monitoramento)
+│   └── [ ] Migrations e seed de dados de teste
 │
-├── 📂 etl/                         # Pipeline de dados
-│   ├── run_etl.py                  # Orquestrador
-│   ├── clean_sinan.py              # Limpeza das fichas SINAN
-│   └── feature_engineering.py     # Engenharia de features
+Sprint 2 ──────────────────────────────────────────────── [Planejado]
 │
-├── 📂 data/
-│   ├── raw/                        # Dados brutos (não versionar dados sensíveis)
-│   └── processed/                  # Dados anonimizados processados
+├── ⚙️ Backend & Integração
+│   ├── [ ] API de previsão (endpoint /predict)
+│   ├── [ ] Lógica do fluxo de perguntas do chatbot
+│   └── [ ] Serviço de alertas e fila de risco
 │
-├── 📂 models/                      # Artefatos do modelo treinado (.pkl)
+Sprint 3 ──────────────────────────────────────────────── [Planejado]
 │
-├── 📂 dashboard/                   # Frontend do Dashboard Web
-│   ├── index.html
-│   ├── css/
-│   └── js/
-│
-├── 📂 tests/                       # Testes unitários e de integração
-│   ├── test_ml.py
-│   ├── test_api.py
-│   └── test_bot.py
-│
-├── 📂 docs/                        # Documentação adicional
-│   ├── api_reference.md
-│   └── sinan_dictionary.md
-│
-├── .env.example                    # Exemplo de variáveis de ambiente
-├── .gitignore
-├── requirements.txt
-├── docker-compose.yml              # (opcional) Orquestração local
-└── README.md
+└── 🖥️ Frontend & Refinamento
+    ├── [ ] Dashboard Web (fila por gravidade)
+    ├── [ ] Testes ponta a ponta (cadastro → Chatbot → Dashboard)
+    ├── [ ] Auditoria de viés do modelo
+    └── [ ] Documentação final e deploy em nuvem
 ```
 
 ---
-
-
 
 ## 👥 Equipe
 
@@ -355,17 +281,6 @@ DengueCare/
 | 👨‍💻 **Dev Team** | Marvin Cristhian Gomes Pinto |
 | 👨‍💻 **Dev Team** | Paulo Guilherme Moreira |
 | 👨‍💻 **Dev Team** | Raphael Culim Neves |
-
----
-
-## 📄 Licença
-
-Este projeto está licenciado sob a **Licença MIT** — veja o arquivo
-[LICENSE](LICENSE) para mais detalhes.
-
-```
-MIT License — Copyright (c) 2026 DengueCare AI Team — Fatec Rio Claro
-```
 
 ---
 
@@ -385,8 +300,7 @@ implementadas:
 - **Finalidade específica:** os dados são utilizados exclusivamente para
   monitoramento de saúde dos pacientes cadastrados e melhoria dos modelos
   preditivos.
-- **Disclaimer no bot:** toda interação via WhatsApp inclui a seguinte
-  mensagem automática:
+- **Disclaimer no chatbot:** toda interação inclui a seguinte mensagem automática:
 
   > *"Este serviço é um suporte ao acompanhamento médico e **não substitui
   > diagnóstico, prescrição ou orientação médica profissional**. Em caso de
