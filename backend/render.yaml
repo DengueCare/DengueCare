@@ -1,0 +1,34 @@
+# render.yaml
+# Arquivo de configuração do Render
+# Coloque este arquivo na RAIZ do repositório (mesma pasta do bot.py)
+ 
+services:
+  - type: web
+    name: denguecare-bot
+    runtime: python
+    region: oregon           # região mais estável no plano gratuito
+    plan: free
+ 
+    # Comando para instalar as dependências
+    buildCommand: pip install -r requirements.txt
+ 
+    # Comando para subir o servidor
+    # O Render injeta a variável $PORT automaticamente
+    startCommand: uvicorn bot:app --host 0.0.0.0 --port $PORT
+ 
+    # Variáveis de ambiente
+    # Os valores reais você preenche no painel do Render (não coloque aqui!)
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false           # "sync: false" = você digita o valor manualmente no painel
+ 
+      - key: DATABASE_URL
+        sync: false
+ 
+      - key: RENDER_EXTERNAL_URL
+        # Esta variável é preenchida AUTOMATICAMENTE pelo próprio Render
+        # com a URL pública do seu serviço. Não precisa digitar nada.
+        fromService:
+          type: web
+          name: denguecare-bot
+          property: host
