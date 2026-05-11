@@ -1,24 +1,24 @@
 # bot.py
 """
 DengueCare Telegram Bot — Modo Webhook (Render)
- 
+
 Em vez de long-polling (conexão aberta contínua), agora usamos Webhook:
 - O Telegram envia uma requisição POST para nossa URL no Render
 - O FastAPI recebe, repassa para o bot processar, e responde
 - Isso permite rodar em qualquer servidor web padrão, incluindo o Render gratuito
- 
+
 Execução local para testes: uvicorn bot:app --reload --port 8000
 Em produção (Render): o próprio Render executa uvicorn automaticamente
 """
- 
+
 import sys
 import os
 import time
 import logging
 import asyncio
- 
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
- 
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from telegram import Update
@@ -30,7 +30,7 @@ from telegram.ext import (
     filters,
 )
 from sqlalchemy import text
- 
+
 from app.core.config import settings
 from app.db.database import engine, AsyncSessionLocal
 from app.handlers.start_handler import (
@@ -44,7 +44,7 @@ from app.handlers.error_handler import (
     unknown_text,
     ajuda_command,
 )
- 
+
 # ==========================================
 # CONFIGURAÇÃO DE LOGGING
 # ==========================================
@@ -56,9 +56,9 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
- 
+
 logger = logging.getLogger("denguecare.bot")
- 
+
 # ==========================================
 # MONTAGEM DA APPLICATION DO TELEGRAM
 # (criada uma vez, reutilizada em todas as requisições)
@@ -66,7 +66,7 @@ logger = logging.getLogger("denguecare.bot")
 def build_application() -> Application:
     """Constrói e configura a Application do python-telegram-bot."""
     application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
- 
+
     # Handlers — mesma ordem do bot.py original
     conv_handler = create_start_conversation_handler()
     application.add_handler(conv_handler)
@@ -75,22 +75,22 @@ def build_application() -> Application:
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text))
     application.add_error_handler(error_handler)
- 
+
     return application
- 
+
 # Instância global — criada uma vez quando o servidor sobe
 ptb_app = build_application()
- 
+
 # ==========================================
 # LIFESPAN: startup e shutdown do servidor
 # ==========================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Executa ao subir e ao desligar o servidor."""
- 
+
     # --- STARTUP ---
     logger.info("🦟 Iniciando DengueCare Bot (modo Webhook)...")
- 
+
     # Testa conexão com Supabase
     start_time = time.perf_counter()
     try:
@@ -98,18 +98,18 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("SELECT 1"))
         latency = round((time.perf_counter() - start_time) * 1000, 2)
         logger.info(f"✅ [SUPABASE] Conexão OK! Ping: {latency}ms")
- 
+
         async with AsyncSessionLocal() as db:
             result = await db.execute(text("SELECT COUNT(*) FROM paciente"))
             count = result.scalar()
             logger.info(f"✅ [SUPABASE] Tabela 'paciente' acessível. Registros: {count}")
     except Exception as e:
         logger.error(f"❌ [SUPABASE] Falha de conexão: {e}")
- 
+
     # Inicializa o bot do Telegram
     await ptb_app.initialize()
     await ptb_app.start()
- 
+
     # Registra o Webhook no Telegram automaticamente
     webhook_url = f"{settings.RENDER_EXTERNAL_URL}/webhook"
     try:
@@ -120,19 +120,19 @@ async def lifespan(app: FastAPI):
         logger.info(f"✅ [WEBHOOK] Registrado com sucesso: {webhook_url}")
     except Exception as e:
         logger.error(f"❌ [WEBHOOK] Falha ao registrar webhook: {e}")
- 
+
     logger.info("🚀 Servidor pronto para receber mensagens!\n")
- 
+
     yield  # servidor fica rodando aqui
- 
+
     # --- SHUTDOWN ---
     logger.info("🛑 Encerrando bot...")
     await ptb_app.stop()
     await ptb_app.shutdown()
     await engine.dispose()
     logger.info("🛑 Encerrado com segurança.")
- 
- 
+
+
 # ==========================================
 # APLICAÇÃO FASTAPI
 # ==========================================
@@ -142,8 +142,8 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
- 
- 
+
+
 # ==========================================
 # ENDPOINT DO WEBHOOK
 # O Telegram vai bater aqui a cada mensagem recebida
@@ -162,19 +162,19 @@ async def telegram_webhook(request: Request) -> Response:
         logger.error(f"Erro ao processar update: {e}")
     # Sempre retorna 200 para o Telegram não reenviar a mensagem
     return Response(status_code=200)
- 
- 
+
+
 # ==========================================
 # ENDPOINT DE HEALTH CHECK
 # Usado pelo UptimeRobot para manter o servidor acordado
 # e pelo Render para saber se o serviço está vivo
 # ==========================================
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
-    """Verifica se o servidor está no ar."""
+    """Verifica se o servidor está no ar. Aceita GET e HEAD (UptimeRobot)."""
     return {"status": "ok", "bot": "DengueCare 🦟"}
- 
- 
+
+
 # ==========================================
 # ENDPOINT RAIZ (informativo)
 # ==========================================
