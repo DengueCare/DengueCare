@@ -42,18 +42,54 @@ async def buscar_paciente_por_carteira(db: AsyncSession, nr_carteira: str) -> di
         raise
 
 
-async def criar_paciente(db: AsyncSession, nm_usuario: str, nr_carteira: str) -> dict:
+async def criar_paciente(
+    db: AsyncSession, 
+    nm_usuario: str, 
+    nr_carteira: str,
+    DT_NASCIMENTO: str,
+    idade_anos: float,
+    cs_sexo: str,
+    diabetes: float,
+    hematolog: float,
+    hepatopat: float,
+    renal: float,
+    hipertensa: float,
+    acido_pept: float,
+    auto_imune: float
+) -> dict:
     """
-    Insere um novo paciente no banco de dados.
+    Insere um novo paciente no banco de dados com dados de perfil e comorbidades.
     """
     try:
-        # A coluna nr_carteira é numeric no banco
         result = await db.execute(
             text(
-                "INSERT INTO paciente (nm_usuario, nr_carteira) "
-                "VALUES (:nm, :nr) RETURNING id, nm_usuario, nr_carteira"
+                """
+                INSERT INTO paciente (
+                    nm_usuario, nr_carteira, DT_NASCIMENTO, idade_anos, cs_sexo,
+                    diabetes, hematolog, hepatopat, renal,
+                    hipertensa, acido_pept, auto_imune
+                ) 
+                VALUES (
+                    :nm, :nr, :dt_nasc, :idade, :sexo,
+                    :diab, :hemato, :hepato, :renal,
+                    :hiper, :acido, :auto
+                ) RETURNING id, nm_usuario, nr_carteira
+                """
             ),
-            {"nm": nm_usuario, "nr": float(nr_carteira)}
+            {
+                "nm": nm_usuario, 
+                "nr": float(nr_carteira),
+                "dt_nasc": DT_NASCIMENTO,
+                "idade": idade_anos,
+                "sexo": cs_sexo,
+                "diab": diabetes,
+                "hemato": hematolog,
+                "hepato": hepatopat,
+                "renal": renal,
+                "hiper": hipertensa,
+                "acido": acido_pept,
+                "auto": auto_imune
+            }
         )
         await db.commit()
         row = result.fetchone()
