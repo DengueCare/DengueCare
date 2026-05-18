@@ -112,3 +112,29 @@ async def listar_todos_pacientes(db: AsyncSession) -> list[dict]:
     except Exception as e:
         logger.error(f"Erro ao listar pacientes: {e}")
         raise
+
+async def atualizar_paciente(db: AsyncSession, paciente_id: int, **dados) -> bool:
+    try:
+        data_objeto = datetime.strptime(dados['DT_NASCIMENTO'], "%Y-%m-%d").date()
+        
+        await db.execute(
+            text("""
+                UPDATE paciente 
+                SET "DT_NASCIMENTO" = :dt, cs_sexo = :sx, diabetes = :d, 
+                    hematolog = :h1, hepatopat = :h2, renal = :r, 
+                    hipertensa = :h3, acido_pept = :a, auto_imune = :ai
+                WHERE id = :id
+            """),
+            {
+                "id": paciente_id, "dt": data_objeto, "sx": dados['cs_sexo'],
+                "d": str(int(dados['diabetes'])), "h1": str(int(dados['hematolog'])),
+                "h2": str(int(dados['hepatopat'])), "r": str(int(dados['renal'])),
+                "h3": str(int(dados['hipertensa'])), "a": str(int(dados['acido_pept'])),
+                "ai": str(int(dados['auto_imune']))
+            }
+        )
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        return False

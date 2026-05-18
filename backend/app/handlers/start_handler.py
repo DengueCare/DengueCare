@@ -185,6 +185,30 @@ async def receber_dt_nascimento(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text("Qual o seu *sexo biológico*?", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
     return AGUARDANDO_SEXO
 
+async def callback_atualizar_dados(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Acionado pelo botão 'Atualizar Perfil de Saúde'"""
+    query = update.callback_query
+    await query.answer()
+    
+    paciente = context.user_data.get("paciente")
+    if not paciente:
+        await query.edit_message_text("⚠️ Erro ao recuperar dados do paciente\\. Use /start novamente\\.")
+        return ConversationHandler.END
+
+    # Prepara a memória para a atualização
+    context.user_data['update_id'] = paciente['id']
+    context.user_data['cadastro_nome'] = paciente['nm_usuario']
+    context.user_data['cadastro_carteira'] = paciente['nr_carteira']
+
+    await query.edit_message_text(
+        "🔄 *Atualização de Perfil de Saúde*\n\n"
+        "Por favor, digite sua *Data de Nascimento*\\.\n"
+        "Exemplo: `15/05/1990`", 
+        parse_mode="MarkdownV2"
+    )
+    # IMPORTANTE: Retorna para o estado de Data de Nascimento para reiniciar o fluxo de perguntas
+    return AGUARDANDO_DT_NASCIMENTO
+
 # --- INÍCIO DO FLUXO DE COMORBIDADES (1 = Sim, 2 = Não) ---
 
 def botoes_sim_nao(prefixo):
@@ -252,43 +276,65 @@ async def callback_acido_pept(update: Update, context: ContextTypes.DEFAULT_TYPE
     return AGUARDANDO_AUTO_IMUNE
 
 async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Última pergunta: salva no banco e encerra o fluxo."""
+    """Última pergunta: decide se cria ou atualiza no banco e encerra o fluxo."""
     query = update.callback_query
     await query.answer()
     context.user_data['auto_imune'] = float(query.data.split('_')[1])
     
-    # Prepara os dados para enviar ao banco
     ud = context.user_data
     
     try:
         async with AsyncSessionLocal() as db:
-            paciente = await criar_paciente(
-                db=db,
-                nm_usuario=ud['cadastro_nome'],
-                nr_carteira=ud['cadastro_carteira'],
-                DT_NASCIMENTO=ud['DT_NASCIMENTO'],
-                cs_sexo=ud['cs_sexo'],
-                diabetes=ud['diabetes'],
-                hematolog=ud['hematolog'],
-                hepatopat=ud['hepatopat'],
-                renal=ud['renal'],
-                hipertensa=ud['hipertensa'],
-                acido_pept=ud['acido_pept'],
-                auto_imune=ud['auto_imune']
-            )
+            if ud.get('update_id'):
+                from app.services.patient_service import atualizar_paciente, buscar_paciente_por_carteira
+                
+                await atualizar_paciente(
+                    db=db,
+                    paciente_id=ud['update_id'],
+                    DT_NASCIMENTO=ud['DT_NASCIMENTO'],
+                    cs_sexo=ud['cs_sexo'],
+                    diabetes=ud['diabetes'],
+                    hematolog=ud['hematolog'],
+                    hepatopat=ud['hepatopat'],
+                    renal=ud['renal'],
+                    hipertensa=ud['hipertensa'],
+                    acido_pept=ud['acido_pept'],
+                    auto_imune=ud['auto_imune']
+                )
+                # Buscamos o paciente atualizado para que o menu mostre os dados novos
+                paciente = await buscar_paciente_por_carteira(db, ud['cadastro_carteira'])
+                mensagem_final = "✅ *Perfil de saúde atualizado com sucesso\\!*"
+            
+            else:
+                from app.services.patient_service import criar_paciente
+                paciente = await criar_paciente(
+                    db=db,
+                    nm_usuario=ud['cadastro_nome'],
+                    nr_carteira=ud['cadastro_carteira'],
+                    DT_NASCIMENTO=ud['DT_NASCIMENTO'],
+                    cs_sexo=ud['cs_sexo'],
+                    diabetes=ud['diabetes'],
+                    hematolog=ud['hematolog'],
+                    hepatopat=ud['hepatopat'],
+                    renal=ud['renal'],
+                    hipertensa=ud['hipertensa'],
+                    acido_pept=ud['acido_pept'],
+                    auto_imune=ud['auto_imune']
+                )
+                mensagem_final = "🎉 *Cadastro realizado com sucesso\\!*"
         
-        # Limpa variáveis temporárias de cadastro
+        # Limpa variáveis temporárias (incluindo o update_id)
         chaves_limpar = ['cadastro_nome', 'cadastro_carteira', 'cs_sexo', 
                          'diabetes', 'hematolog', 'hepatopat', 'renal', 'hipertensa', 
-                         'acido_pept', 'auto_imune']
+                         'acido_pept', 'auto_imune', 'update_id', 'DT_NASCIMENTO']
         for chave in chaves_limpar:
             ud.pop(chave, None)
         
-        await query.edit_message_text("🎉 *Cadastro realizado com sucesso\\!*", parse_mode="MarkdownV2")
+        await query.edit_message_text(mensagem_final, parse_mode="MarkdownV2")
         return await _exibir_menu_paciente(update, context, paciente)
 
     except Exception as e:
-        logger.error(f"Erro ao criar paciente: {e}", exc_info=True)
+        logger.error(f"Erro ao processar dados do paciente: {e}", exc_info=True)
         await query.edit_message_text("⚠️ Ocorreu um erro ao salvar os dados. Tente usar /start novamente.")
         return ConversationHandler.END
 
@@ -330,6 +376,7 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
 
     keyboard = [
         [InlineKeyboardButton("📋 Meu Acompanhamento", callback_data="acompanhamento")],
+        [InlineKeyboardButton("⚙️ Atualizar Perfil de Saúde", callback_data="atualizar_dados")],
         [InlineKeyboardButton("🔄 Trocar Paciente", callback_data="trocar_paciente")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -417,7 +464,8 @@ def create_start_conversation_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
             CommandHandler("start", start_command),
-            CallbackQueryHandler(callback_trocar_paciente, pattern="^trocar_paciente$")
+            CallbackQueryHandler(callback_trocar_paciente, pattern="^trocar_paciente$"),
+            CallbackQueryHandler(callback_atualizar_dados, pattern="^atualizar_dados$")
         ],
         states={
             AGUARDANDO_CARTEIRA: [
