@@ -7,6 +7,7 @@ Encapsula todas as consultas ao Supabase/PostgreSQL relacionadas à tabela 'paci
 import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ async def buscar_paciente_por_carteira(db: AsyncSession, nr_carteira: str) -> di
     """
     try:
         result = await db.execute(
-            text("SELECT id, nm_usuario, nr_carteira FROM paciente WHERE nr_carteira = :nr"),
+            text('SELECT id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo FROM paciente WHERE nr_carteira = :nr'),
             {"nr": nr_carteira}
         )
         row = result.fetchone()
@@ -47,7 +48,6 @@ async def criar_paciente(
     nm_usuario: str, 
     nr_carteira: str,
     DT_NASCIMENTO: str,
-    idade_anos: float,
     cs_sexo: str,
     diabetes: float,
     hematolog: float,
@@ -57,20 +57,20 @@ async def criar_paciente(
     acido_pept: float,
     auto_imune: float
 ) -> dict:
-    """
-    Insere um novo paciente no banco de dados com dados de perfil e comorbidades.
-    """
     try:
+        # 1. Converte a data para objeto real (já fizemos isso, mantém)
+        data_objeto = datetime.strptime(DT_NASCIMENTO, "%Y-%m-%d").date()
+
         result = await db.execute(
             text(
                 """
                 INSERT INTO paciente (
-                    nm_usuario, nr_carteira, DT_NASCIMENTO, idade_anos, cs_sexo,
+                    nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo,
                     diabetes, hematolog, hepatopat, renal,
                     hipertensa, acido_pept, auto_imune
-                ) 
+                ) RETURNING id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo
                 VALUES (
-                    :nm, :nr, :dt_nasc, :idade, :sexo,
+                    :nm, :nr, :dt_nasc, :sexo,
                     :diab, :hemato, :hepato, :renal,
                     :hiper, :acido, :auto
                 ) RETURNING id, nm_usuario, nr_carteira
@@ -79,22 +79,20 @@ async def criar_paciente(
             {
                 "nm": nm_usuario, 
                 "nr": float(nr_carteira),
-                "dt_nasc": DT_NASCIMENTO,
-                "idade": idade_anos,
+                "dt_nasc": data_objeto,
                 "sexo": cs_sexo,
-                "diab": diabetes,
-                "hemato": hematolog,
-                "hepato": hepatopat,
-                "renal": renal,
-                "hiper": hipertensa,
-                "acido": acido_pept,
-                "auto": auto_imune
+                "diab": str(int(diabetes)),
+                "hemato": str(int(hematolog)),
+                "hepato": str(int(hepatopat)),
+                "renal": str(int(renal)),
+                "hiper": str(int(hipertensa)),
+                "acido": str(int(acido_pept)),
+                "auto": str(int(auto_imune))
             }
         )
         await db.commit()
         row = result.fetchone()
         paciente = dict(row._mapping)
-        logger.info(f"Novo paciente criado: {paciente['nm_usuario']} (carteira: {paciente['nr_carteira']})")
         return paciente
     except Exception as e:
         await db.rollback()

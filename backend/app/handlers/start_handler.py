@@ -67,22 +67,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return AGUARDANDO_CARTEIRA
 
 from datetime import datetime
+from datetime import date
 # ==========================================
 # HANDLER: Recebe o nr_carteira para busca
 # ==========================================
 async def receber_carteira(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Recebe o texto digitado (nr_carteira) e consulta o Supabase.
-    Se não encontrar, oferece a opção de cadastro.
+    Recebe o nr_carteira, consulta o banco e oferece opções de Cadastro ou Tentar Novamente.
     """
     nr_carteira = update.message.text.strip()
     
     if not nr_carteira.replace('.', '').replace('-', '').isdigit():
-        await update.message.reply_text("⚠️ Por favor, digite apenas números para a carteira.")
+        await update.message.reply_text("⚠️ Por favor, digite apenas números para a carteira\\.")
         return AGUARDANDO_CARTEIRA
 
-    # Limpa apenas os caracteres numéricos caso tenha digitado pontos
     nr_carteira_limpo = ''.join(filter(str.isdigit, nr_carteira))
+    
+    # Mantemos a carteira salva para o caso de ele escolher cadastrar
+    context.user_data['cadastro_carteira'] = nr_carteira_limpo
 
     try:
         async with AsyncSessionLocal() as db:
@@ -91,6 +93,7 @@ async def receber_carteira(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if paciente:
             return await _exibir_menu_paciente(update, context, paciente)
         else:
+            # RESTAURADO: Agora com os dois botões novamente
             keyboard = [
                 [InlineKeyboardButton("✅ Sim, quero me cadastrar", callback_data="iniciar_cadastro")],
                 [InlineKeyboardButton("🔄 Tentar outro número", callback_data="tentar_novamente")]
@@ -98,16 +101,15 @@ async def receber_carteira(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             await update.message.reply_text(
-                f"❌ Nenhum paciente encontrado com a carteira *{_escape_md(nr_carteira)}*\\.\n\n"
-                f"Deseja realizar o seu cadastro agora?",
+                f"❌ Carteira *{_escape_md(nr_carteira)}* não encontrada\\.\n\nDeseja realizar o seu cadastro agora?",
                 parse_mode="MarkdownV2",
                 reply_markup=reply_markup,
             )
             return AGUARDANDO_CARTEIRA
-
+            
     except Exception as e:
-        logger.error(f"Erro ao buscar paciente: {e}", exc_info=True)
-        await update.message.reply_text("⚠️ Ocorreu um erro no sistema. Tente novamente mais tarde.")
+        logger.error(f"Erro ao buscar paciente: {e}")
+        await update.message.reply_text("⚠️ Ocorreu um erro no sistema\\. Tente novamente mais tarde\\.")
         return ConversationHandler.END
 
 
@@ -136,52 +138,27 @@ async def callback_tentar_novamente(update: Update, context: ContextTypes.DEFAUL
 # HANDLERS: Fluxo de Cadastro
 # ==========================================
 async def receber_nome_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe o nome e pede a carteira."""
     nome = update.message.text.strip()
     context.user_data['cadastro_nome'] = nome
     
-    await update.message.reply_text(f"Ótimo, {_escape_md(nome)}\\.\n\nAgora, digite o número da sua *Carteira*:", parse_mode="MarkdownV2")
-    return AGUARDANDO_CARTEIRA_CADASTRO
+    # Adicionamos as barras de escape em todos os pontos e exclamações
+    await update.message.reply_text(
+        f"Ótimo, {_escape_md(nome)}\\!\n\n"
+        f"Como já tenho sua carteira, agora preciso da sua *Data de Nascimento*\\.\n"
+        f"Por favor, digite no formato *DD/MM/AAAA*\\.\n\n"
+        f"Exemplo: `15/05/1990`", 
+        parse_mode="MarkdownV2"
+    )
+    return AGUARDANDO_DT_NASCIMENTO
 
 
 async def receber_carteira_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe a carteira, cria o paciente no DB e exibe o menu."""
     nr_carteira = update.message.text.strip()
-    
-    if not nr_carteira.replace('.', '').replace('-', '').isdigit():
-        await update.message.reply_text("⚠️ Por favor, digite apenas números para a carteira.")
-        return AGUARDANDO_CARTEIRA_CADASTRO
-
-    nr_carteira_limpo = ''.join(filter(str.isdigit, nr_carteira))
-    nome = context.user_data.get('cadastro_nome')
-
-    try:
-        async with AsyncSessionLocal() as db:
-            paciente = await criar_paciente(db, nome, nr_carteira_limpo)
-        
-        # Limpa variável temporária de cadastro
-        context.user_data.pop('cadastro_nome', None)
-        
-        await update.message.reply_text("🎉 *Cadastro realizado com sucesso\\!*", parse_mode="MarkdownV2")
-        return await _exibir_menu_paciente(update, context, paciente)
-
-    except Exception as e:
-        logger.error(f"Erro ao criar paciente: {e}", exc_info=True)
-        await update.message.reply_text("⚠️ Ocorreu um erro ao criar seu cadastro. Pode ser que essa carteira já exista. Tente usar /start novamente.")
-        return ConversationHandler.END
-
-async def receber_carteira_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recebe a carteira e pede a Data de Nascimento."""
-    nr_carteira = update.message.text.strip()
-    
-    if not nr_carteira.replace('.', '').replace('-', '').isdigit():
-        await update.message.reply_text("⚠️ Por favor, digite apenas números para a carteira.")
-        return AGUARDANDO_CARTEIRA_CADASTRO
-
+    # Apenas limpa e guarda o dado
     nr_carteira_limpo = ''.join(filter(str.isdigit, nr_carteira))
     context.user_data['cadastro_carteira'] = nr_carteira_limpo
     
-    await update.message.reply_text("📅 Qual a sua *Data de Nascimento*?\nExemplo: `15/05/1990`", parse_mode="Markdown")
+    await update.message.reply_text("📅 Qual a sua *Data de Nascimento*?")
     return AGUARDANDO_DT_NASCIMENTO
 
 async def receber_dt_nascimento(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -290,7 +267,6 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
                 nm_usuario=ud['cadastro_nome'],
                 nr_carteira=ud['cadastro_carteira'],
                 DT_NASCIMENTO=ud['DT_NASCIMENTO'],
-                idade_anos=ud['idade_anos'],
                 cs_sexo=ud['cs_sexo'],
                 diabetes=ud['diabetes'],
                 hematolog=ud['hematolog'],
@@ -302,7 +278,7 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
         
         # Limpa variáveis temporárias de cadastro
-        chaves_limpar = ['cadastro_nome', 'cadastro_carteira', 'idade_anos', 'cs_sexo', 
+        chaves_limpar = ['cadastro_nome', 'cadastro_carteira', 'cs_sexo', 
                          'diabetes', 'hematolog', 'hepatopat', 'renal', 'hipertensa', 
                          'acido_pept', 'auto_imune']
         for chave in chaves_limpar:
@@ -320,8 +296,37 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
 # FUNÇÃO AUXILIAR: Exibe o menu principal
 # ==========================================
 async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TYPE, paciente: dict) -> int:
-    """Armazena o paciente no contexto e exibe as opções pós-identificação."""
+    """Exibe o menu com proteções contra dados nulos no banco."""
     context.user_data["paciente"] = paciente
+
+    # --- PROTEÇÃO PARA IDADE ---
+    dt_nasc = paciente.get("DT_NASCIMENTO")
+    idade_texto = "Não informada"
+    
+    if dt_nasc:
+        try:
+            # Se for objeto date (o que o SQLAlchemy costuma retornar)
+            if isinstance(dt_nasc, date):
+                hoje = date.today()
+                idade = hoje.year - dt_nasc.year - ((hoje.month, hoje.day) < (dt_nasc.month, dt_nasc.day))
+                idade_texto = f"{idade} anos"
+            # Se for string (caso o banco retorne texto)
+            elif isinstance(dt_nasc, str) and len(dt_nasc) >= 10:
+                from datetime import datetime
+                # Tenta converter a string 'YYYY-MM-DD'
+                dt_objeto = datetime.strptime(dt_nasc[:10], "%Y-%m-%d").date()
+                hoje = date.today()
+                idade = hoje.year - dt_objeto.year - ((hoje.month, hoje.day) < (dt_objeto.month, dt_objeto.day))
+                idade_texto = f"{idade} anos"
+        except Exception as e:
+            # Se der qualquer erro no cálculo, ele apenas mantém "Não informada" e não trava
+            logger.warning(f"Erro ao calcular idade para o paciente {paciente.get('id')}: {e}")
+
+    # --- PROTEÇÃO PARA SEXO ---
+    sexo_raw = paciente.get("cs_sexo")
+    sexo_map = {"M": "Masculino", "F": "Feminino"}
+    # Se sexo_raw for None ou não estiver no mapa, retorna "Não informado"
+    sexo_texto = sexo_map.get(str(sexo_raw).upper(), "Não informado")
 
     keyboard = [
         [InlineKeyboardButton("📋 Meu Acompanhamento", callback_data="acompanhamento")],
@@ -331,9 +336,11 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
 
     mensagem = (
         f"✅ *Paciente identificado\\!*\n\n"
-        f"👤 *Nome:* {_escape_md(paciente['nm_usuario'])}\n"
-        f"🪪 *Carteira:* {_escape_md(str(paciente['nr_carteira']))}\n\n"
-        f"Olá, *{_escape_md(paciente['nm_usuario'])}*\\! "
+        f"👤 *Nome:* {_escape_md(paciente.get('nm_usuario', 'Não informado'))}\n"
+        f"🪪 *Carteira:* {_escape_md(str(paciente.get('nr_carteira', '---')))}\n"
+        f"🎂 *Idade:* {_escape_md(idade_texto)}\n"
+        f"🚻 *Sexo:* {_escape_md(sexo_texto)}\n\n"
+        f"Olá, *{_escape_md(paciente.get('nm_usuario', 'Paciente'))}*\\! "
         f"Estou aqui para acompanhar sua recuperação\\.\n"
         f"Escolha uma opção abaixo:"
     )
@@ -341,11 +348,9 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
     if update.message:
         await update.message.reply_text(mensagem, parse_mode="MarkdownV2", reply_markup=reply_markup)
     else:
-        # Se veio de um callback query
         await update.callback_query.edit_message_text(mensagem, parse_mode="MarkdownV2", reply_markup=reply_markup)
 
     return ConversationHandler.END
-
 
 # ==========================================
 # CALLBACKS: Botões inline pós-identificação
