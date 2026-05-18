@@ -22,8 +22,7 @@ env/
 *.csv
 *.json
 *.log
-models_ml/*.pkl
-models_ml/*.joblib
+modelos_ml/*.joblib
 
 # Testes e Relatórios
 .locust/
