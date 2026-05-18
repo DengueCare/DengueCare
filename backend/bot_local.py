@@ -29,12 +29,15 @@ from app.handlers.error_handler import (
     unknown_text,
     ajuda_command,
 )
+from app.services.ml_service import predict_classification, _model
+print(f"Modelo carregado: {_model is not None}")
  
 logging.basicConfig(
     format="%(asctime)s | %(name)-25s | %(levelname)-8s | %(message)s",
     level=logging.INFO,
     handlers=[logging.StreamHandler()],
 )
+logging.getLogger("denguecare.ml").setLevel(logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

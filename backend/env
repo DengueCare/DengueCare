@@ -1,3 +1,0 @@
-TELEGRAM_BOT_TOKEN=8633188303:AAEac2_M5eMph5maubAJqD3qpVqLxKtKlpI
-
-DATABASE_URL=postgresql+asyncpg://postgres.kczfuaecyowlqqxcffzr:D3ngueC%40re2026@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
