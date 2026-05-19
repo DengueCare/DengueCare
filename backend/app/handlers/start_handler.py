@@ -1,19 +1,11 @@
 # app/handlers/start_handler.py
 """
-Handler principal do bot: /start, fluxo de identificação e cadastro de paciente.
-
-Fluxo conversacional (Máquina de Estados):
-  1. Usuário envia /start → Bot saúda e pede o número da carteira
-  2. Usuário digita nr_carteira → Bot busca no Supabase
-  3a. Se encontrado → Saúda pelo nome, armazena no context e exibe menu
-  3b. Se não encontrado → Pergunta se deseja cadastrar
-  4. Fluxo de Cadastro:
-     - Pede o Nome Completo
-     - Pede a Carteira
-     - Salva no banco e exibe menu
+Handler principal do bot: /start, fluxo de identificação, cadastro e triagem diária.
+Totalmente integrado ao modelo de Machine Learning e persistência assíncrona.
 """
 
 import logging
+from datetime import datetime, date
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
@@ -26,6 +18,15 @@ from telegram.ext import (
 
 from app.db.database import AsyncSessionLocal
 from app.services.patient_service import buscar_paciente_por_carteira, criar_paciente
+from app.services.atendimento_service import salvar_atendimento, buscar_ultimo_atendimento
+from app.services.bot_service import (
+    PERGUNTAS_TRIAGEM,
+    RESPOSTAS_CLASSIFICACAO,
+    RESPOSTA_FALLBACK,
+    MENSAGEM_EVOLUCAO,
+    detectar_evolucao,
+)
+from app.services.ml_service import predict_classification
 
 logger = logging.getLogger(__name__)
 
@@ -45,45 +46,39 @@ AGUARDANDO_HIPERTENSA = 9
 AGUARDANDO_ACIDO_PEPT = 10
 AGUARDANDO_AUTO_IMUNE = 11
 
+# Estados do fluxo de triagem
+TRIAGEM_PERGUNTA = 12
+
+
 # ==========================================
 # HANDLER: /start — Ponto de entrada do bot
 # ==========================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Acionado quando o usuário envia /start.
-    Exibe a saudação inicial e solicita o número da carteira.
-    """
     user = update.effective_user
     logger.info(f"Novo /start recebido de {user.first_name} (telegram_id: {user.id})")
 
+    nome_esquivado = _escape_md(user.first_name)
     await update.message.reply_text(
-        f"🦟 *Olá, {user.first_name}\\!*\n\n"
+        f"🦟 *Olá, {nome_esquivado}\\!*\n\n"
         f"Bem\\-vindo ao *DengueCare* — seu assistente de acompanhamento da Dengue\\.\n\n"
         f"Para começarmos, preciso identificar seu cadastro\\.\n"
         f"Por favor, digite o seu *número da carteira*:",
         parse_mode="MarkdownV2",
     )
-
     return AGUARDANDO_CARTEIRA
 
-from datetime import datetime
-from datetime import date
+
 # ==========================================
 # HANDLER: Recebe o nr_carteira para busca
 # ==========================================
 async def receber_carteira(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """
-    Recebe o nr_carteira, consulta o banco e oferece opções de Cadastro ou Tentar Novamente.
-    """
     nr_carteira = update.message.text.strip()
-    
+
     if not nr_carteira.replace('.', '').replace('-', '').isdigit():
         await update.message.reply_text("⚠️ Por favor, digite apenas números para a carteira\\.")
         return AGUARDANDO_CARTEIRA
 
     nr_carteira_limpo = ''.join(filter(str.isdigit, nr_carteira))
-    
-    # Mantemos a carteira salva para o caso de ele escolher cadastrar
     context.user_data['cadastro_carteira'] = nr_carteira_limpo
 
     try:
@@ -93,20 +88,17 @@ async def receber_carteira(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if paciente:
             return await _exibir_menu_paciente(update, context, paciente)
         else:
-            # RESTAURADO: Agora com os dois botões novamente
             keyboard = [
                 [InlineKeyboardButton("✅ Sim, quero me cadastrar", callback_data="iniciar_cadastro")],
                 [InlineKeyboardButton("🔄 Tentar outro número", callback_data="tentar_novamente")]
             ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
             await update.message.reply_text(
                 f"❌ Carteira *{_escape_md(nr_carteira)}* não encontrada\\.\n\nDeseja realizar o seu cadastro agora?",
                 parse_mode="MarkdownV2",
-                reply_markup=reply_markup,
+                reply_markup=InlineKeyboardMarkup(keyboard),
             )
             return AGUARDANDO_CARTEIRA
-            
+
     except Exception as e:
         logger.error(f"Erro ao buscar paciente: {e}")
         await update.message.reply_text("⚠️ Ocorreu um erro no sistema\\. Tente novamente mais tarde\\.")
@@ -117,19 +109,15 @@ async def receber_carteira(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 # CALLBACKS: Fluxo de não-encontrado
 # ==========================================
 async def callback_iniciar_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Inicia o fluxo de cadastro perguntando o nome."""
     query = update.callback_query
     await query.answer()
-
     await query.edit_message_text("📝 *Cadastro de Paciente*\n\nPor favor, digite o seu *Nome Completo*:", parse_mode="MarkdownV2")
     return AGUARDANDO_NOME_CADASTRO
 
 
 async def callback_tentar_novamente(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Pede o número da carteira novamente sem alterar o estado."""
     query = update.callback_query
     await query.answer()
-
     await query.edit_message_text("🔄 Certo\\! Digite o *número da carteira* novamente:", parse_mode="MarkdownV2")
     return AGUARDANDO_CARTEIRA
 
@@ -140,13 +128,11 @@ async def callback_tentar_novamente(update: Update, context: ContextTypes.DEFAUL
 async def receber_nome_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     nome = update.message.text.strip()
     context.user_data['cadastro_nome'] = nome
-    
-    # Adicionamos as barras de escape em todos os pontos e exclamações
     await update.message.reply_text(
         f"Ótimo, {_escape_md(nome)}\\!\n\n"
         f"Como já tenho sua carteira, agora preciso da sua *Data de Nascimento*\\.\n"
         f"Por favor, digite no formato *DD/MM/AAAA*\\.\n\n"
-        f"Exemplo: `15/05/1990`", 
+        f"Exemplo: `15/05/1990`",
         parse_mode="MarkdownV2"
     )
     return AGUARDANDO_DT_NASCIMENTO
@@ -154,182 +140,158 @@ async def receber_nome_cadastro(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def receber_carteira_cadastro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     nr_carteira = update.message.text.strip()
-    # Apenas limpa e guarda o dado
     nr_carteira_limpo = ''.join(filter(str.isdigit, nr_carteira))
     context.user_data['cadastro_carteira'] = nr_carteira_limpo
-    
     await update.message.reply_text("📅 Qual a sua *Data de Nascimento*?")
     return AGUARDANDO_DT_NASCIMENTO
 
+
 async def receber_dt_nascimento(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     texto_data = update.message.text.strip()
-    
     try:
         data_nasc = datetime.strptime(texto_data, "%d/%m/%Y")
         hoje = datetime.now()
         idade = hoje.year - data_nasc.year - ((hoje.month, hoje.day) < (data_nasc.month, data_nasc.day))
-        
         context.user_data['DT_NASCIMENTO'] = data_nasc.strftime("%Y-%m-%d")
-        
-        # Garante que a idade seja um float, ex: 34.0, igual ao ETL
-        context.user_data['idade_anos'] = float(idade) 
-        
+        context.user_data['idade_anos'] = float(idade)
     except ValueError:
-        await update.message.reply_text("⚠️ Formato inválido. Por favor, digite sua data de nascimento no formato *DD/MM/AAAA*.\nExemplo: `15/05/1990`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "⚠️ Formato inválido. Por favor, digite sua data de nascimento no formato *DD/MM/AAAA*.\nExemplo: `15/05/1990`",
+            parse_mode="Markdown"
+        )
         return AGUARDANDO_DT_NASCIMENTO
-        
+
     keyboard = [
         [InlineKeyboardButton("Masculino", callback_data="sexo_M"),
          InlineKeyboardButton("Feminino", callback_data="sexo_F")]
     ]
-    await update.message.reply_text("Qual o seu *sexo biológico*?", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await update.message.reply_text(
+        "Qual o seu *sexo biológico*?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
     return AGUARDANDO_SEXO
 
+
 async def callback_atualizar_dados(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Acionado pelo botão 'Atualizar Perfil de Saúde'"""
     query = update.callback_query
     await query.answer()
-    
     paciente = context.user_data.get("paciente")
     if not paciente:
         await query.edit_message_text("⚠️ Erro ao recuperar dados do paciente\\. Use /start novamente\\.")
         return ConversationHandler.END
-
-    # Prepara a memória para a atualização
     context.user_data['update_id'] = paciente['id']
     context.user_data['cadastro_nome'] = paciente['nm_usuario']
     context.user_data['cadastro_carteira'] = paciente['nr_carteira']
-
     await query.edit_message_text(
         "🔄 *Atualização de Perfil de Saúde*\n\n"
         "Por favor, digite sua *Data de Nascimento*\\.\n"
-        "Exemplo: `15/05/1990`", 
+        "Exemplo: `15/05/1990`",
         parse_mode="MarkdownV2"
     )
-    # IMPORTANTE: Retorna para o estado de Data de Nascimento para reiniciar o fluxo de perguntas
     return AGUARDANDO_DT_NASCIMENTO
 
-# --- INÍCIO DO FLUXO DE COMORBIDADES (1 = Sim, 2 = Não) ---
 
 def botoes_sim_nao(prefixo):
-    """Função auxiliar para gerar botões de Sim e Não"""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Sim", callback_data=f"{prefixo}_1"), 
-         InlineKeyboardButton("Não", callback_data=f"{prefixo}_2")]
+        [InlineKeyboardButton("✅ Sim", callback_data=f"{prefixo}_1"),
+         InlineKeyboardButton("❌ Não", callback_data=f"{prefixo}_2")]
     ])
+
 
 async def callback_sexo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    context.user_data['cs_sexo'] = query.data.split('_')[1] # Pega 'M' ou 'F'
-    
+    context.user_data['cs_sexo'] = query.data.split('_')[1]
     await query.edit_message_text("Você possui *Diabetes*?", reply_markup=botoes_sim_nao("diab"), parse_mode="Markdown")
     return AGUARDANDO_DIABETES
+
 
 async def callback_diabetes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-
-    context.user_data['diabetes'] = float(query.data.split('_')[1]) 
-    
+    context.user_data['diabetes'] = float(query.data.split('_')[1])
     await query.edit_message_text("Você possui *Doenças Hematológicas*?", reply_markup=botoes_sim_nao("hemato"), parse_mode="Markdown")
     return AGUARDANDO_HEMATOLOG
+
 
 async def callback_hematolog(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data['hematolog'] = float(query.data.split('_')[1])
-    
-    await query.edit_message_text("Você possui *Doenças no Fígado (Hepatopatias)*?", reply_markup=botoes_sim_nao("hepato"), parse_mode="Markdown")
+    await query.edit_message_text("Você possui *Doenças no Fígado \\(Hepatopatias\\)*?", reply_markup=botoes_sim_nao("hepato"), parse_mode="MarkdownV2")
     return AGUARDANDO_HEPATOPAT
+
 
 async def callback_hepatopat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data['hepatopat'] = float(query.data.split('_')[1])
-    
     await query.edit_message_text("Você possui *Doenças Renais*?", reply_markup=botoes_sim_nao("renal"), parse_mode="Markdown")
     return AGUARDANDO_RENAL
+
 
 async def callback_renal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data['renal'] = float(query.data.split('_')[1])
-    
     await query.edit_message_text("Você possui *Hipertensão Arterial*?", reply_markup=botoes_sim_nao("hiper"), parse_mode="Markdown")
     return AGUARDANDO_HIPERTENSA
+
 
 async def callback_hipertensa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data['hipertensa'] = float(query.data.split('_')[1])
-    
-    await query.edit_message_text("Você possui *Doença Ácido-Péptica* (ex: Gastrite, Úlcera)?", reply_markup=botoes_sim_nao("acido"), parse_mode="Markdown")
+    await query.edit_message_text("Você possui *Doença Ácido\\-Péptica* \\(ex: Gastrite, Úlcera\\)?", reply_markup=botoes_sim_nao("acido"), parse_mode="MarkdownV2")
     return AGUARDANDO_ACIDO_PEPT
+
 
 async def callback_acido_pept(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data['acido_pept'] = float(query.data.split('_')[1])
-    
     await query.edit_message_text("Você possui alguma *Doença Autoimune*?", reply_markup=botoes_sim_nao("auto"), parse_mode="Markdown")
     return AGUARDANDO_AUTO_IMUNE
 
+
 async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Última pergunta: decide se cria ou atualiza no banco e encerra o fluxo."""
     query = update.callback_query
     await query.answer()
     context.user_data['auto_imune'] = float(query.data.split('_')[1])
-    
     ud = context.user_data
-    
+
     try:
         async with AsyncSessionLocal() as db:
             if ud.get('update_id'):
-                from app.services.patient_service import atualizar_paciente, buscar_paciente_por_carteira
-                
+                from app.services.patient_service import atualizar_paciente
                 await atualizar_paciente(
-                    db=db,
-                    paciente_id=ud['update_id'],
-                    DT_NASCIMENTO=ud['DT_NASCIMENTO'],
-                    cs_sexo=ud['cs_sexo'],
-                    diabetes=ud['diabetes'],
-                    hematolog=ud['hematolog'],
-                    hepatopat=ud['hepatopat'],
-                    renal=ud['renal'],
-                    hipertensa=ud['hipertensa'],
-                    acido_pept=ud['acido_pept'],
+                    db=db, paciente_id=ud['update_id'],
+                    DT_NASCIMENTO=ud['DT_NASCIMENTO'], cs_sexo=ud['cs_sexo'],
+                    diabetes=ud['diabetes'], hematolog=ud['hematolog'],
+                    hepatopat=ud['hepatopat'], renal=ud['renal'],
+                    hipertensa=ud['hipertensa'], acido_pept=ud['acido_pept'],
                     auto_imune=ud['auto_imune']
                 )
-                # Buscamos o paciente atualizado para que o menu mostre os dados novos
                 paciente = await buscar_paciente_por_carteira(db, ud['cadastro_carteira'])
                 mensagem_final = "✅ *Perfil de saúde atualizado com sucesso\\!*"
-            
             else:
-                from app.services.patient_service import criar_paciente
                 paciente = await criar_paciente(
-                    db=db,
-                    nm_usuario=ud['cadastro_nome'],
-                    nr_carteira=ud['cadastro_carteira'],
-                    DT_NASCIMENTO=ud['DT_NASCIMENTO'],
-                    cs_sexo=ud['cs_sexo'],
-                    diabetes=ud['diabetes'],
-                    hematolog=ud['hematolog'],
-                    hepatopat=ud['hepatopat'],
-                    renal=ud['renal'],
-                    hipertensa=ud['hipertensa'],
-                    acido_pept=ud['acido_pept'],
+                    db=db, nm_usuario=ud['cadastro_nome'], nr_carteira=ud['cadastro_carteira'],
+                    DT_NASCIMENTO=ud['DT_NASCIMENTO'], cs_sexo=ud['cs_sexo'],
+                    diabetes=ud['diabetes'], hematolog=ud['hematolog'],
+                    hepatopat=ud['hepatopat'], renal=ud['renal'],
+                    hipertensa=ud['hipertensa'], acido_pept=ud['acido_pept'],
                     auto_imune=ud['auto_imune']
                 )
                 mensagem_final = "🎉 *Cadastro realizado com sucesso\\!*"
-        
-        # Limpa variáveis temporárias (incluindo o update_id)
-        chaves_limpar = ['cadastro_nome', 'cadastro_carteira', 'cs_sexo', 
-                         'diabetes', 'hematolog', 'hepatopat', 'renal', 'hipertensa', 
+
+        chaves_limpar = ['cadastro_nome', 'cadastro_carteira', 'cs_sexo',
+                         'diabetes', 'hematolog', 'hepatopat', 'renal', 'hipertensa',
                          'acido_pept', 'auto_imune', 'update_id', 'DT_NASCIMENTO']
         for chave in chaves_limpar:
             ud.pop(chave, None)
-        
+
         await query.edit_message_text(mensagem_final, parse_mode="MarkdownV2")
         return await _exibir_menu_paciente(update, context, paciente)
 
@@ -338,51 +300,267 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text("⚠️ Ocorreu um erro ao salvar os dados. Tente usar /start novamente.")
         return ConversationHandler.END
 
+
+# ==========================================
+# FLUXO DE TRIAGEM DIÁRIA
+# ==========================================
+
+async def callback_acompanhamento(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    paciente = context.user_data.get("paciente")
+    if not paciente:
+        await query.edit_message_text(
+            "⚠️ Sessão expirada\\. Use /start para se identificar novamente\\.",
+            parse_mode="MarkdownV2"
+        )
+        return ConversationHandler.END
+
+    context.user_data['triagem_index'] = 0
+    context.user_data['triagem_inicio'] = datetime.now()
+    context.user_data['triagem_respostas'] = {}
+
+    await query.edit_message_text(
+        f"📋 *Triagem Diária — {_escape_md(paciente['nm_usuario'])}*\n\n"
+        f"Vou te fazer *{len(PERGUNTAS_TRIAGEM)} perguntas rápidas* sobre como você está se sentindo hoje\\.\n"
+        f"Responda com os botões *Sim* ou *Não*\\.\n\n"
+        f"Vamos começar\\! 👇",
+        parse_mode="MarkdownV2"
+    )
+
+    return await _enviar_proxima_pergunta(update, context)
+
+
+async def _enviar_proxima_pergunta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    index = context.user_data.get('triagem_index', 0)
+
+    if index >= len(PERGUNTAS_TRIAGEM):
+        return await _finalizar_triagem(update, context)
+
+    chave, texto, prefixo = PERGUNTAS_TRIAGEM[index]
+    total = len(PERGUNTAS_TRIAGEM)
+    progresso = f"_{index + 1}/{total}_\n\n"
+
+    teclado = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Sim", callback_data=f"triagem_{prefixo}_1"),
+         InlineKeyboardButton("❌ Não", callback_data=f"triagem_{prefixo}_2")]
+    ])
+
+    mensagem = progresso + texto
+
+    if update.callback_query:
+        try:
+            await update.callback_query.message.reply_text(
+                mensagem,
+                parse_mode="MarkdownV2",
+                reply_markup=teclado
+            )
+        except Exception:
+            await update.callback_query.edit_message_text(
+                mensagem,
+                parse_mode="MarkdownV2",
+                reply_markup=teclado
+            )
+    else:
+        await update.message.reply_text(
+            mensagem,
+            parse_mode="MarkdownV2",
+            reply_markup=teclado
+        )
+
+    return TRIAGEM_PERGUNTA
+
+
+async def callback_triagem_resposta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    partes = query.data.split('_')
+    valor = partes[-1]
+    chave = '_'.join(partes[1:-1])
+
+    context.user_data['triagem_respostas'][chave] = valor
+
+    resposta_texto = "✅ Sim" if valor == "1" else "❌ Não"
+    _, texto_pergunta, _ = PERGUNTAS_TRIAGEM[context.user_data['triagem_index']]
+    try:
+        await query.edit_message_text(
+            f"{texto_pergunta}\n\n*Resposta:* {resposta_texto}",
+            parse_mode="MarkdownV2"
+        )
+    except Exception:
+        pass
+
+    context.user_data['triagem_index'] += 1
+    return await _enviar_proxima_pergunta(update, context)
+
+
+async def _finalizar_triagem(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    paciente = context.user_data.get("paciente")
+    respostas = context.user_data.get('triagem_respostas', {})
+    dt_inicio = context.user_data.get('triagem_inicio', datetime.now())
+    dt_fim = datetime.now()
+
+    if isinstance(paciente.get('DT_NASCIMENTO'), date):
+        hoje = date.today()
+        dt_nasc = paciente.get('DT_NASCIMENTO')
+        idade_anos = float(hoje.year - dt_nasc.year - ((hoje.month, hoje.day) < (dt_nasc.month, dt_nasc.day)))
+    else:
+        idade_anos = context.user_data.get('idade_anos', 30.0)
+
+    sexo_raw = str(paciente.get('cs_sexo', 'M')).upper()
+    cs_sexo = 1 if sexo_raw == 'M' else (0 if sexo_raw == 'F' else -1)
+
+    async with AsyncSessionLocal() as db:
+        from sqlalchemy import text
+        result = await db.execute(
+            text("SELECT diabetes, hematolog, hepatopat, renal, hipertensa, acido_pept, auto_imune FROM paciente WHERE id = :id"),
+            {"id": paciente['id']}
+        )
+        row = result.fetchone()
+        comorbidades = dict(row._mapping) if row else {}
+
+    def to_float(val, default=2.0):
+        try:
+            return float(val) if val is not None else default
+        except (ValueError, TypeError):
+            return default
+
+    features = {
+        "idade_anos":  idade_anos,
+        "cs_sexo":     cs_sexo,
+        "febre":       float(respostas.get("febre", "2")),
+        "mialgia":     float(respostas.get("mialgia", "2")),
+        "cefaleia":    float(respostas.get("cefaleia", "2")),
+        "exantema":    float(respostas.get("exantema", "2")),
+        "vomito":      float(respostas.get("vomito", "2")),
+        "nausea":      float(respostas.get("nausea", "2")),
+        "dor_costas":  float(respostas.get("dor_costas", "2")),
+        "conjuntvit":  float(respostas.get("conjuntvit", "2")),
+        "artrite":     float(respostas.get("artrite", "2")),
+        "artralgia":   float(respostas.get("artralgia", "2")),
+        "dor_retro":   float(respostas.get("dor_retro", "2")),
+        "diabetes":    to_float(comorbidades.get("diabetes")),
+        "hematolog":   to_float(comorbidades.get("hematolog")),
+        "hepatopat":   to_float(comorbidades.get("hepatopat")),
+        "renal":       to_float(comorbidades.get("renal")),
+        "hipertensa":  to_float(comorbidades.get("hipertensa")),
+        "acido_pept":  to_float(comorbidades.get("acido_pept")),
+        "auto_imune":  to_float(comorbidades.get("auto_imune")),
+    }
+
+    classificacao = predict_classification(features)
+    logger.info(f"Triagem finalizada — paciente {paciente['id']} | classificação: {classificacao}")
+
+    evolucao_detectada = False
+    try:
+        async with AsyncSessionLocal() as db:
+            ultimo = await buscar_ultimo_atendimento(db, paciente['id'])
+            if ultimo and ultimo.get('grupo_risco'):
+                evolucao_detectada = detectar_evolucao(ultimo['grupo_risco'], classificacao)
+    except Exception as e:
+        logger.warning(f"Não foi possível verificar evolução: {e}")
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await salvar_atendimento(
+                db=db,
+                paciente_id=paciente['id'],  # Alinhado com a Chave Estrangeira correta na coluna 'id'
+                dt_inicio=dt_inicio,
+                dt_fim=dt_fim,
+                febre=respostas.get("febre", "2"),
+                mialgia=respostas.get("mialgia", "2"),
+                cefaleia=respostas.get("cefaleia", "2"),
+                exantema=respostas.get("exantema", "2"),
+                vomito=respostas.get("vomito", "2"),
+                nausea=respostas.get("nausea", "2"),
+                dor_costas=respostas.get("dor_costas", "2"),
+                conjuntvit=respostas.get("conjuntvit", "2"),
+                artrite=respostas.get("artrite", "2"),
+                artralgia=respostas.get("artralgia", "2"),
+                dor_retro=respostas.get("dor_retro", "2"),
+                grupo_risco=classificacao,
+            )
+    except Exception as e:
+        logger.error(f"Erro ao salvar atendimento: {e}")
+
+    texto_resultado = RESPOSTAS_CLASSIFICACAO.get(classificacao, RESPOSTA_FALLBACK)
+
+    if evolucao_detectada:
+        texto_resultado = MENSAGEM_EVOLUCAO + texto_resultado
+
+    for chave in ['triagem_index', 'triagem_inicio', 'triagem_respostas']:
+        context.user_data.pop(chave, None)
+
+    teclado_final = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏠 Voltar ao Menu", callback_data="voltar_menu")]
+    ])
+
+    if update.callback_query:
+        await update.callback_query.message.reply_text(
+            f"✅ *Triagem concluída\\!*\n\n{texto_resultado}",
+            parse_mode="MarkdownV2",
+            reply_markup=teclado_final
+        )
+    else:
+        await update.message.reply_text(
+            f"✅ *Triagem concluída\\!*\n\n{texto_resultado}",
+            parse_mode="MarkdownV2",
+            reply_markup=teclado_final
+        )
+
+    return ConversationHandler.END
+
+
+# ==========================================
+# CALLBACK: Voltar ao menu principal
+# ==========================================
+async def callback_voltar_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    paciente = context.user_data.get("paciente")
+    if paciente:
+        return await _exibir_menu_paciente(update, context, paciente)
+    else:
+        await query.edit_message_text("⚠️ Sessão expirada\\. Use /start para se identificar novamente\\.", parse_mode="MarkdownV2")
+        return ConversationHandler.END
+
+
 # ==========================================
 # FUNÇÃO AUXILIAR: Exibe o menu principal
 # ==========================================
 async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TYPE, paciente: dict) -> int:
-    """Exibe o menu com proteções contra dados nulos no banco."""
     context.user_data["paciente"] = paciente
 
-    # --- PROTEÇÃO PARA IDADE ---
     dt_nasc = paciente.get("DT_NASCIMENTO")
     idade_texto = "Não informada"
-    
     if dt_nasc:
         try:
-            # Se for objeto date (o que o SQLAlchemy costuma retornar)
             if isinstance(dt_nasc, date):
                 hoje = date.today()
                 idade = hoje.year - dt_nasc.year - ((hoje.month, hoje.day) < (dt_nasc.month, dt_nasc.day))
                 idade_texto = f"{idade} anos"
-            # Se for string (caso o banco retorne texto)
             elif isinstance(dt_nasc, str) and len(dt_nasc) >= 10:
-                from datetime import datetime
-                # Tenta converter a string 'YYYY-MM-DD'
                 dt_objeto = datetime.strptime(dt_nasc[:10], "%Y-%m-%d").date()
                 hoje = date.today()
                 idade = hoje.year - dt_objeto.year - ((hoje.month, hoje.day) < (dt_objeto.month, dt_objeto.day))
                 idade_texto = f"{idade} anos"
         except Exception as e:
-            # Se der qualquer erro no cálculo, ele apenas mantém "Não informada" e não trava
-            logger.warning(f"Erro ao calcular idade para o paciente {paciente.get('id')}: {e}")
+            logger.warning(f"Erro ao calcular idade: {e}")
 
-    # --- PROTEÇÃO PARA SEXO ---
     sexo_raw = paciente.get("cs_sexo")
-    sexo_map = {"M": "Masculino", "F": "Feminino"}
-    # Se sexo_raw for None ou não estiver no mapa, retorna "Não informado"
-    sexo_texto = sexo_map.get(str(sexo_raw).upper(), "Não informado")
+    sexo_mapa = {"M": "Masculino", "F": "Feminino"}
+    sexo_texto = sexo_mapa.get(str(sexo_raw).upper(), "Não informado")
 
     keyboard = [
         [InlineKeyboardButton("📋 Meu Acompanhamento", callback_data="acompanhamento")],
         [InlineKeyboardButton("⚙️ Atualizar Perfil de Saúde", callback_data="atualizar_dados")],
         [InlineKeyboardButton("🔄 Trocar Paciente", callback_data="trocar_paciente")],
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
 
     mensagem = (
-        f"✅ *Paciente identificado\\!*\n\n"
+        f"✅ *Paciente identificado\\!* \n\n"
         f"👤 *Nome:* {_escape_md(paciente.get('nm_usuario', 'Não informado'))}\n"
         f"🪪 *Carteira:* {_escape_md(str(paciente.get('nr_carteira', '---')))}\n"
         f"🎂 *Idade:* {_escape_md(idade_texto)}\n"
@@ -393,51 +571,31 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
     if update.message:
-        await update.message.reply_text(mensagem, parse_mode="MarkdownV2", reply_markup=reply_markup)
+        await update.message.reply_text(mensagem, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await update.callback_query.edit_message_text(mensagem, parse_mode="MarkdownV2", reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(mensagem, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
 
     return ConversationHandler.END
 
+
 # ==========================================
-# CALLBACKS: Botões inline pós-identificação
+# CALLBACKS: Trocar paciente
 # ==========================================
-async def callback_acompanhamento(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback do botão 'Meu Acompanhamento'."""
-    query = update.callback_query
-    await query.answer()
-
-    paciente = context.user_data.get("paciente")
-    if paciente:
-        await query.edit_message_text(
-            f"📋 *Acompanhamento de {_escape_md(paciente['nm_usuario'])}*\n\n"
-            f"🚧 Esta funcionalidade está em desenvolvimento\\.\n"
-            f"Em breve você poderá registrar sintomas, ver histórico e receber alertas\\.\n\n"
-            f"Use /start para voltar ao menu\\.",
-            parse_mode="MarkdownV2",
-        )
-    else:
-        await query.edit_message_text("⚠️ Sessão expirada. Use /start para se identificar novamente.")
-
-
 async def callback_trocar_paciente(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Callback do botão 'Trocar Paciente'."""
     query = update.callback_query
     await query.answer()
-
     context.user_data.pop("paciente", None)
     await query.edit_message_text(
-        "🔄 Certo\\! Digite o *número da carteira* do novo paciente:", 
+        "🔄 Certo\\! Digite o *número da carteira* do novo paciente:",
         parse_mode="MarkdownV2"
     )
     return AGUARDANDO_CARTEIRA
 
 
 # ==========================================
-# HANDLER: /cancelar — Sai do fluxo
+# HANDLER: /cancelar
 # ==========================================
 async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Encerra a conversa de identificação ou cadastro."""
     await update.message.reply_text("👋 Operação cancelada. Use /start quando quiser retomar.")
     return ConversationHandler.END
 
@@ -446,10 +604,9 @@ async def cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # UTILITÁRIO: Escape MarkdownV2
 # ==========================================
 def _escape_md(text: str) -> str:
-    """Escapa caracteres especiais do MarkdownV2."""
     special_chars = r"_*[]()~`>#+-=|{}.!"
     escaped = ""
-    for char in text:
+    for char in str(text):
         if char in special_chars:
             escaped += f"\\{char}"
         else:
@@ -465,7 +622,8 @@ def create_start_conversation_handler() -> ConversationHandler:
         entry_points=[
             CommandHandler("start", start_command),
             CallbackQueryHandler(callback_trocar_paciente, pattern="^trocar_paciente$"),
-            CallbackQueryHandler(callback_atualizar_dados, pattern="^atualizar_dados$")
+            CallbackQueryHandler(callback_atualizar_dados, pattern="^atualizar_dados$"),
+            CallbackQueryHandler(callback_acompanhamento, pattern="^acompanhamento$"),
         ],
         states={
             AGUARDANDO_CARTEIRA: [
@@ -479,21 +637,24 @@ def create_start_conversation_handler() -> ConversationHandler:
             AGUARDANDO_CARTEIRA_CADASTRO: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receber_carteira_cadastro),
             ],
-            # --- NOVOS ESTADOS AQUI ---
             AGUARDANDO_DT_NASCIMENTO: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receber_dt_nascimento)
             ],
             AGUARDANDO_SEXO: [
                 CallbackQueryHandler(callback_sexo, pattern="^sexo_")
             ],
-            AGUARDANDO_DIABETES: [CallbackQueryHandler(callback_diabetes, pattern="^diab_")],
+            AGUARDANDO_DIABETES:  [CallbackQueryHandler(callback_diabetes,  pattern="^diab_")],
             AGUARDANDO_HEMATOLOG: [CallbackQueryHandler(callback_hematolog, pattern="^hemato_")],
             AGUARDANDO_HEPATOPAT: [CallbackQueryHandler(callback_hepatopat, pattern="^hepato_")],
-            AGUARDANDO_RENAL: [CallbackQueryHandler(callback_renal, pattern="^renal_")],
-            AGUARDANDO_HIPERTENSA: [CallbackQueryHandler(callback_hipertensa, pattern="^hiper_")],
-            AGUARDANDO_ACIDO_PEPT: [CallbackQueryHandler(callback_acido_pept, pattern="^acido_")],
-            AGUARDANDO_AUTO_IMUNE: [CallbackQueryHandler(callback_auto_imune, pattern="^auto_")],
-            # --------------------------
+            AGUARDANDO_RENAL:     [CallbackQueryHandler(callback_renal,     pattern="^renal_")],
+            AGUARDANDO_HIPERTENSA:[CallbackQueryHandler(callback_hipertensa,pattern="^hiper_")],
+            AGUARDANDO_ACIDO_PEPT:[CallbackQueryHandler(callback_acido_pept,pattern="^acido_")],
+            AGUARDANDO_AUTO_IMUNE:[CallbackQueryHandler(callback_auto_imune,pattern="^auto_")],
+
+            TRIAGEM_PERGUNTA: [
+                CallbackQueryHandler(callback_triagem_resposta, pattern="^triagem_"),
+                CallbackQueryHandler(callback_voltar_menu, pattern="^voltar_menu$"),
+            ],
         },
         fallbacks=[
             CommandHandler("cancelar", cancelar),

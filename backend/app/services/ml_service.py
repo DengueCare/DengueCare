@@ -72,22 +72,6 @@ except Exception as e:
 def predict_classification(features: dict) -> str:
     """
     Realiza a predição do quadro clínico do paciente.
-
-    Args:
-        features: dicionário com os valores de cada feature.
-                  Exemplo:
-                  {
-                      "idade_anos": 35.0,
-                      "cs_sexo": 1,          # 1=M, 0=F, -1=Ignorado
-                      "febre": 1,            # 1=Sim, 2=Não
-                      "mialgia": 2,
-                      "cefaleia": 1,
-                      ...
-                  }
-
-    Returns:
-        str: 'A', 'B', 'C' ou 'D'
-             Em caso de erro, retorna 'C' por segurança médica.
     """
     if _model is None:
         logger.warning("⚠️  [ML] Modelo não disponível — retornando 'C' por segurança.")
@@ -95,11 +79,13 @@ def predict_classification(features: dict) -> str:
 
     try:
         # Monta o DataFrame na ordem exata que o modelo espera
-        # (com nomes de colunas, igual ao treinamento com pandas)
         vetor = pd.DataFrame([features], columns=FEATURE_NAMES)
         resultado = _model.predict(vetor)
         classificacao = str(resultado[0])
-        logger.info(f"🤖 [ML] Predição: {classificacao} | Input: {vetor[0]}")
+        
+        # CORREÇÃO: Usa o dicionário 'features' no log em vez do 'vetor[0]' do Pandas
+        logger.info(f"🤖 [ML] Predição real do modelo: {classificacao} | Input: {features}")
+        
         return classificacao
 
     except KeyError as e:
@@ -108,7 +94,6 @@ def predict_classification(features: dict) -> str:
     except Exception as e:
         logger.error(f"❌ [ML] Erro na predição: {e}")
         return "C"
-
 
 # ==========================================
 # FUNÇÃO LEGADA (compatibilidade com o bot_service.py existente)
