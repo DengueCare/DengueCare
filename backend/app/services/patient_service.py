@@ -68,12 +68,13 @@ async def criar_paciente(
                     nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo,
                     diabetes, hematolog, hepatopat, renal,
                     hipertensa, acido_pept, auto_imune
-                ) RETURNING id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo
+                ) 
                 VALUES (
                     :nm, :nr, :dt_nasc, :sexo,
                     :diab, :hemato, :hepato, :renal,
                     :hiper, :acido, :auto
-                ) RETURNING id, nm_usuario, nr_carteira
+                ) 
+                RETURNING id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo
                 """
             ),
             {
