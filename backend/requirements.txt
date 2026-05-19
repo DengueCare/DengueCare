@@ -3,11 +3,10 @@ sqlalchemy[asyncio]
 asyncpg
 pydantic
 pydantic-settings
-scikit-learn
+scikit-learn==1.6.1
 joblib
 python-dotenv
 fastapi
 uvicorn[standard]
 httpx
-sqlalchemy
 pandas
