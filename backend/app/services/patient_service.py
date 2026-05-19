@@ -7,6 +7,7 @@ Encapsula todas as consultas ao Supabase/PostgreSQL relacionadas à tabela 'paci
 import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ async def buscar_paciente_por_carteira(db: AsyncSession, nr_carteira: str) -> di
     """
     try:
         result = await db.execute(
-            text("SELECT id, nm_usuario, nr_carteira FROM paciente WHERE nr_carteira = :nr"),
+            text('SELECT id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo FROM paciente WHERE nr_carteira = :nr'),
             {"nr": nr_carteira}
         )
         row = result.fetchone()
@@ -42,23 +43,57 @@ async def buscar_paciente_por_carteira(db: AsyncSession, nr_carteira: str) -> di
         raise
 
 
-async def criar_paciente(db: AsyncSession, nm_usuario: str, nr_carteira: str) -> dict:
-    """
-    Insere um novo paciente no banco de dados.
-    """
+async def criar_paciente(
+    db: AsyncSession, 
+    nm_usuario: str, 
+    nr_carteira: str,
+    DT_NASCIMENTO: str,
+    cs_sexo: str,
+    diabetes: float,
+    hematolog: float,
+    hepatopat: float,
+    renal: float,
+    hipertensa: float,
+    acido_pept: float,
+    auto_imune: float
+) -> dict:
     try:
-        # A coluna nr_carteira é numeric no banco
+        # 1. Converte a data para objeto real (já fizemos isso, mantém)
+        data_objeto = datetime.strptime(DT_NASCIMENTO, "%Y-%m-%d").date()
+
         result = await db.execute(
             text(
-                "INSERT INTO paciente (nm_usuario, nr_carteira) "
-                "VALUES (:nm, :nr) RETURNING id, nm_usuario, nr_carteira"
+                """
+                INSERT INTO paciente (
+                    nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo,
+                    diabetes, hematolog, hepatopat, renal,
+                    hipertensa, acido_pept, auto_imune
+                ) 
+                VALUES (
+                    :nm, :nr, :dt_nasc, :sexo,
+                    :diab, :hemato, :hepato, :renal,
+                    :hiper, :acido, :auto
+                ) 
+                RETURNING id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo
+                """
             ),
-            {"nm": nm_usuario, "nr": float(nr_carteira)}
+            {
+                "nm": nm_usuario, 
+                "nr": float(nr_carteira),
+                "dt_nasc": data_objeto,
+                "sexo": cs_sexo,
+                "diab": str(int(diabetes)),
+                "hemato": str(int(hematolog)),
+                "hepato": str(int(hepatopat)),
+                "renal": str(int(renal)),
+                "hiper": str(int(hipertensa)),
+                "acido": str(int(acido_pept)),
+                "auto": str(int(auto_imune))
+            }
         )
         await db.commit()
         row = result.fetchone()
         paciente = dict(row._mapping)
-        logger.info(f"Novo paciente criado: {paciente['nm_usuario']} (carteira: {paciente['nr_carteira']})")
         return paciente
     except Exception as e:
         await db.rollback()
@@ -78,3 +113,29 @@ async def listar_todos_pacientes(db: AsyncSession) -> list[dict]:
     except Exception as e:
         logger.error(f"Erro ao listar pacientes: {e}")
         raise
+
+async def atualizar_paciente(db: AsyncSession, paciente_id: int, **dados) -> bool:
+    try:
+        data_objeto = datetime.strptime(dados['DT_NASCIMENTO'], "%Y-%m-%d").date()
+        
+        await db.execute(
+            text("""
+                UPDATE paciente 
+                SET "DT_NASCIMENTO" = :dt, cs_sexo = :sx, diabetes = :d, 
+                    hematolog = :h1, hepatopat = :h2, renal = :r, 
+                    hipertensa = :h3, acido_pept = :a, auto_imune = :ai
+                WHERE id = :id
+            """),
+            {
+                "id": paciente_id, "dt": data_objeto, "sx": dados['cs_sexo'],
+                "d": str(int(dados['diabetes'])), "h1": str(int(dados['hematolog'])),
+                "h2": str(int(dados['hepatopat'])), "r": str(int(dados['renal'])),
+                "h3": str(int(dados['hipertensa'])), "a": str(int(dados['acido_pept'])),
+                "ai": str(int(dados['auto_imune']))
+            }
+        )
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        return False
