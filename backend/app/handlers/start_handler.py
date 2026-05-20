@@ -526,6 +526,57 @@ async def callback_voltar_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text("⚠️ Sessão expirada\\. Use /start para se identificar novamente\\.", parse_mode="MarkdownV2")
         return ConversationHandler.END
 
+# Baixar cartilha
+# ==========================================
+# CALLBACK: Enviar Cartilha do Ministério da Saúde
+# ==========================================
+async def callback_baixar_cartilha(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    # Feedback visual imediato para melhorar a UX
+    mensagem_aguarde = await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="⏳ *Aguarde um momento\\.\\.\\.* Baixando a cartilha oficial do Ministério da Saúde\\. Isso pode levar alguns segundos\\.",
+        parse_mode="MarkdownV2"
+    )
+
+    # URL oficial do PDF do Ministério da Saúde (link direto)
+    pdf_url = "https://www.ubec.edu.br/wp-content/uploads/2024/02/CARTILHA.pdf"
+
+    caption = (
+        "📚 *Dengue: Diagnóstico e Manejo Clínico*\n\n"
+        "Aqui está o material oficial do Ministério da Saúde\\. "
+        "Ele contém orientações valiosas sobre cuidados, hidratação e restrições médicas para o seu tratamento\\."
+    )
+
+    try:
+        # Envia o documento aumentando os timeouts de rede
+        await context.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=pdf_url,
+            caption=caption,
+            parse_mode="MarkdownV2",
+            read_timeout=60,   # Aumenta a tolerância de leitura para 60 segundos
+            write_timeout=60
+        )
+        
+        # Apaga a mensagem de "Aguarde" após o envio bem-sucedido do PDF
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id,
+            message_id=mensagem_aguarde.message_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Erro ao enviar cartilha: {e}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="⚠️ Não foi possível carregar o arquivo no momento\\. Tente novamente mais tarde\\.",
+            parse_mode="MarkdownV2"
+        )
+
+    return ConversationHandler.END
+
 
 # ==========================================
 # FUNÇÃO AUXILIAR: Exibe o menu principal
@@ -555,6 +606,7 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
 
     keyboard = [
         [InlineKeyboardButton("📋 Meu Acompanhamento", callback_data="acompanhamento")],
+        [InlineKeyboardButton("📚 Guia Clínico - Ministério da Saúde", callback_data="baixar_cartilha")],
         [InlineKeyboardButton("⚙️ Atualizar Perfil de Saúde", callback_data="atualizar_dados")],
         [InlineKeyboardButton("🔄 Trocar Paciente", callback_data="trocar_paciente")],
     ]
@@ -624,6 +676,8 @@ def create_start_conversation_handler() -> ConversationHandler:
             CallbackQueryHandler(callback_trocar_paciente, pattern="^trocar_paciente$"),
             CallbackQueryHandler(callback_atualizar_dados, pattern="^atualizar_dados$"),
             CallbackQueryHandler(callback_acompanhamento, pattern="^acompanhamento$"),
+            CallbackQueryHandler(callback_baixar_cartilha, pattern="^baixar_cartilha$"),
+            CallbackQueryHandler(callback_voltar_menu, pattern="^voltar_menu$"),
         ],
         states={
             AGUARDANDO_CARTEIRA: [
@@ -653,7 +707,6 @@ def create_start_conversation_handler() -> ConversationHandler:
 
             TRIAGEM_PERGUNTA: [
                 CallbackQueryHandler(callback_triagem_resposta, pattern="^triagem_"),
-                CallbackQueryHandler(callback_voltar_menu, pattern="^voltar_menu$"),
             ],
         },
         fallbacks=[
