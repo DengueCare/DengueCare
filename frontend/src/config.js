@@ -3,4 +3,4 @@
 
 export const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:8000/api/v1'
-    : 'https://denguecare-bot.onrender.com/api/v1'; // Substitua pelo nome do seu serviço no Render
+    : 'https://denguecare.onrender.com/api/v1'; // Ajustado para corresponder ao nome do serviço 'DengueCare' no Render
