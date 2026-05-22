@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db
-from app.services.auth_service import registrar_profissional, autenticar_profissional
+from app.services.auth_service import registrar_profissional, autenticar_profissional, atualizar_profissional, inativar_profissional
 
 router = APIRouter()
 
@@ -14,6 +14,15 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     carteira: str
     senha: str
+
+class UpdateProfileRequest(BaseModel):
+    carteira: str
+    nome: str = None
+    senha: str = None
+    ubs: str = None
+
+class InactivateRequest(BaseModel):
+    carteira: str
 
 @router.post("/register")
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -36,7 +45,31 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             return {"success": True, "message": "Login efetuado com sucesso", "data": prof}
         else:
             raise HTTPException(status_code=401, detail="Carteira ou senha incorretos.")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Erro interno ao efetuar login.")
+
+@router.put("/update")
+async def update_profile(req: UpdateProfileRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        prof = await atualizar_profissional(db, req.carteira, novo_nome=req.nome, nova_senha=req.senha, nova_ubs=req.ubs)
+        if prof:
+            return {"success": True, "message": "Perfil atualizado com sucesso", "data": prof}
+        else:
+            raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erro interno ao atualizar perfil.")
+
+@router.patch("/inactivate")
+async def inactivate_profile(req: InactivateRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        success = await inativar_profissional(db, req.carteira)
+        if success:
+            return {"success": True, "message": "Perfil inativado com sucesso"}
+        else:
+            raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erro interno ao inativar perfil.")

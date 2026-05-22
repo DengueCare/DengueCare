@@ -1,12 +1,19 @@
-import { PatientAPIRepository } from '../../../infrastructure/repositories/PatientAPIRepository.js';
+import { PatientAPIRepository } from '../../../infrastructure/repositories/PatientAPIRepository.js?v=3';
 import { GetPatientByIdUseCase, GetPatientsUseCase } from '../../../application/usecases/PatientUseCases.js';
 import { API_BASE_URL } from '../../../config.js';
 
 export class DashboardController {
     constructor() {
         const repo = new PatientAPIRepository();
+        this.repo = repo;
         this.getPatientByIdUseCase = new GetPatientByIdUseCase(repo);
         this.getPatientsUseCase = new GetPatientsUseCase(repo);
+        
+        this.pacientesExibidos = [];
+        this.ordenacao = { campo: null, direcao: 'asc' };
+        this.chartRiscoInstance = null;
+        this.chartIdadesInstance = null;
+        this.chartSintomasInstance = null;
         
         // Expose functions to the window object so inline HTML onclicks work without rewriting HTML
         window.fazerLogin = this.fazerLogin.bind(this);
@@ -16,6 +23,16 @@ export class DashboardController {
         window.toggleAuthMode = this.toggleAuthMode.bind(this);
         window.criarConta = this.criarConta.bind(this);
         window.fazerLogout = this.fazerLogout.bind(this);
+        window.ordenarPor = this.ordenarPor.bind(this);
+        window.filtrarPacientes = this.filtrarPacientes.bind(this);
+        window.abrirModalCadastro = this.abrirModalCadastro.bind(this);
+        window.fecharModalCadastro = this.fecharModalCadastro.bind(this);
+        window.submeterPaciente = this.submeterPaciente.bind(this);
+        window.editarPacienteAtual = this.editarPacienteAtual.bind(this);
+        window.abrirModalInativarPaciente = this.abrirModalInativarPaciente.bind(this);
+        window.confirmarInativarPaciente = this.confirmarInativarPaciente.bind(this);
+        window.salvarConfiguracoes = this.salvarConfiguracoes.bind(this);
+        window.inativarCadastroMedico = this.inativarCadastroMedico.bind(this);
 
         this.alertedPatients = new Set();
         this.alertasDescartados = {}; // Armazena { "id_paciente": "dt_ultima_triagem_descartada" }
@@ -25,36 +42,149 @@ export class DashboardController {
 
     async init() {
         // Verificar se há usuário logado no localStorage
-        const user = localStorage.getItem('denguecare_user');
-        if (user) {
+        const userStr = localStorage.getItem('denguecare_user');
+        if (userStr) {
+            const user = JSON.parse(userStr);
             const loginScreen = document.getElementById('login-screen');
             const mainApp = document.getElementById('main-app');
             if (loginScreen) loginScreen.style.display = 'none';
             if (mainApp) mainApp.style.display = 'flex';
+            
+            this.atualizarPerfilSidebar(user);
         }
 
+        await this.carregarEstatisticas();
         await this.carregarTabelaPacientes();
         // Polling para tempo real a cada 10 segundos
         setInterval(() => this.carregarTabelaPacientes(true), 10000);
+    }
+
+    async carregarEstatisticas() {
+        try {
+            const repo = new PatientAPIRepository();
+            const stats = await repo.getDashboardStats();
+            if (!stats) return;
+
+            const cards = document.querySelectorAll('.stat-card h2');
+            if (cards.length >= 4) {
+                cards[0].textContent = stats.total_pacientes ?? 0;
+                cards[1].textContent = stats.alto_risco ?? 0;
+                cards[2].textContent = stats.tempo_espera ?? '45 min';
+                cards[3].textContent = stats.admissoes_hoje ?? 0;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar estatísticas do dashboard:', error);
+        }
+    }
+
+    atualizarAlertasCriticos(pacientesArray) {
+        const alertBox = document.querySelector('.alert-box');
+        if (!alertBox) return;
+
+        // Filtra pacientes nos grupos C e D
+        const criticos = pacientesArray.filter(p => p.grupoAtual === 'Grupo C' || p.grupoAtual === 'Grupo D');
+
+        // Atualiza a legenda de alerta
+        const alertSub = alertBox.querySelector('.alert-sub');
+        if (alertSub) {
+            alertSub.textContent = criticos.length === 1 
+                ? '1 paciente requer atenção imediata' 
+                : `${criticos.length} pacientes requerem atenção imediata`;
+        }
+
+        // Remove cards de alerta antigos (mantendo o header e sub)
+        const oldCards = alertBox.querySelectorAll('.alert-card');
+        oldCards.forEach(card => card.remove());
+
+        // Se não houver nenhum paciente crítico, exibe feedback positivo
+        if (criticos.length === 0) {
+            const noAlertCard = document.createElement('div');
+            noAlertCard.className = 'alert-card';
+            noAlertCard.style.borderColor = '#e6f4ea';
+            noAlertCard.style.background = '#f4fbf7';
+            noAlertCard.style.pointerEvents = 'none';
+            noAlertCard.innerHTML = `
+                <div style="color: #1e8e3e; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <span>✅</span> Sem alertas de urgência ou alto risco no momento.
+                </div>
+            `;
+            alertBox.appendChild(noAlertCard);
+            return;
+        }
+
+        // Renderiza cada paciente crítico
+        criticos.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'alert-card';
+            card.setAttribute('onclick', `window.abrirDetalhes('${p.id}')`);
+            card.style.cursor = 'pointer';
+            
+            let desc = p.grupoAtual === 'Grupo D' 
+                ? 'Sinais de choque/gravidade máxima detectados. Encaminhamento imediato.' 
+                : 'Sinais de alarme ativos. Requer avaliação prioritária.';
+            
+            if (p.comorbidades && p.comorbidades.length > 0) {
+                desc += ` Comorbidades: ${p.comorbidades.join(', ')}.`;
+            }
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4>${p.nome}</h4>
+                    <span class="badge ${p.riscoBadge || 'badge-red'}">${p.grupoAtual}</span>
+                </div>
+                <p style="margin-top: 5px;">${desc}</p>
+                <span class="time-ago">Triagem Recente</span>
+            `;
+            alertBox.appendChild(card);
+        });
     }
 
     async carregarTabelaPacientes(isPolling = false) {
         const tbody = document.getElementById('lista-pacientes-tabela');
         if (!tbody) return; 
 
-        tbody.innerHTML = ''; 
-
         // Adiciona um loading visual apenas na primeira carga
-        if (!isPolling) {
+        if (!isPolling && tbody.innerHTML.trim() === '') {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #666; padding: 30px;">Carregando pacientes da API...</td></tr>`;
         }
 
-        const pacientesDict = await this.getPatientsUseCase.execute();
-        const pacientesArray = Object.values(pacientesDict || {});
+        try {
+            const pacientesDict = await this.getPatientsUseCase.execute();
+            const pacientesArray = Object.values(pacientesDict || {}).map(p => {
+                if (p.dt_sin_pri) {
+                    const diffTime = Math.abs(new Date() - new Date(p.dt_sin_pri));
+                    p.dias = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                }
+                return p;
+            });
+
+            this.atualizarAlertasCriticos(pacientesArray);
+
+            const countBox = document.getElementById('total-pacientes-list-count');
+            if (countBox) {
+                countBox.textContent = pacientesArray.length;
+            }
+
+            this.pacientesExibidos = pacientesArray;
+
+            if (this.ordenacao.campo) {
+                this.aplicarOrdenacao();
+            }
+
+            this.renderizarPacientesNaTabela();
+        } catch (error) {
+            console.error("Erro ao carregar tabela de pacientes:", error);
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red; padding: 30px;">Erro ao carregar dados da API.</td></tr>`;
+        }
+    }
+
+    renderizarPacientesNaTabela() {
+        const tbody = document.getElementById('lista-pacientes-tabela');
+        if (!tbody) return;
 
         tbody.innerHTML = ''; 
 
-        if (pacientesArray.length === 0) {
+        if (this.pacientesExibidos.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="4" style="text-align: center; padding: 40px; color: #888;">
@@ -64,13 +194,17 @@ export class DashboardController {
                     </td>
                 </tr>
             `;
-            
-            // Atualiza os contadores estáticos da tela para 0
-            document.querySelectorAll('.stat-card h2').forEach(el => el.textContent = '0');
             return;
         }
 
-        pacientesArray.forEach(p => {
+        this.pacientesExibidos.forEach(p => {
+            let riscoBadgeClass = 'badge-gray';
+            const riscoNome = p.grupoAtual || p.riscoTexto || '';
+            if (riscoNome.includes('Grupo A')) riscoBadgeClass = 'badge-blue';
+            else if (riscoNome.includes('Grupo B')) riscoBadgeClass = 'badge-green';
+            else if (riscoNome.includes('Grupo C')) riscoBadgeClass = 'badge-yellow';
+            else if (riscoNome.includes('Grupo D')) riscoBadgeClass = 'badge-red';
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
@@ -79,9 +213,9 @@ export class DashboardController {
                         <strong>${p.nome}</strong>
                     </div>
                 </td>
-                <td><span class="badge ${p.riscoBadge || 'badge-green'}">${p.riscoTexto || 'Risco Indefinido'}</span></td>
+                <td><span class="badge ${riscoBadgeClass}">${riscoNome || 'Risco Indefinido'}</span></td>
                 <td>${p.dias || 0} dias</td>
-                <td><a class="action-link" style="cursor: pointer;" onclick="abrirDetalhes('${p.id || Object.keys(pacientesDict).find(k => pacientesDict[k] === p)}')">Ver Detalhes</a></td>
+                <td><a class="action-link" style="cursor: pointer;" onclick="window.abrirDetalhes('${p.id}')">Ver Detalhes</a></td>
             `;
             tbody.appendChild(tr);
 
@@ -181,6 +315,75 @@ export class DashboardController {
         this.carregarTabelaPacientes();
     }
 
+    ordenarPor(campo) {
+        if (this.ordenacao.campo === campo) {
+            this.ordenacao.direcao = this.ordenacao.direcao === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.ordenacao.campo = campo;
+            this.ordenacao.direcao = 'asc';
+        }
+
+        this.atualizarIconesOrdenacao();
+        this.aplicarOrdenacao();
+        this.renderizarPacientesNaTabela();
+    }
+
+    atualizarIconesOrdenacao() {
+        const icones = {
+            nome: document.getElementById('sort-nome-icon'),
+            risco: document.getElementById('sort-risco-icon'),
+            dias: document.getElementById('sort-dias-icon')
+        };
+
+        for (const key in icones) {
+            if (icones[key]) {
+                icones[key].textContent = '⇅';
+                icones[key].style.color = '#aaa';
+            }
+        }
+
+        const activeIcon = icones[this.ordenacao.campo];
+        if (activeIcon) {
+            activeIcon.textContent = this.ordenacao.direcao === 'asc' ? '▲' : '▼';
+            activeIcon.style.color = 'var(--primary-blue)';
+        }
+    }
+
+    aplicarOrdenacao() {
+        const campo = this.ordenacao.campo;
+        const direcao = this.ordenacao.direcao;
+
+        const getGrupoRisco = p => {
+            const gr = p.grupoAtual || p.grupo || p.riscoTexto || '';
+            if (gr.includes('D')) return 4;
+            if (gr.includes('C')) return 3;
+            if (gr.includes('B')) return 2;
+            if (gr.includes('A')) return 1;
+            return 0;
+        };
+
+        this.pacientesExibidos.sort((a, b) => {
+            let valA, valB;
+
+            if (campo === 'nome') {
+                valA = (a.nome || '').toLowerCase();
+                valB = (b.nome || '').toLowerCase();
+                if (valA < valB) return direcao === 'asc' ? -1 : 1;
+                if (valA > valB) return direcao === 'asc' ? 1 : -1;
+                return 0;
+            } else if (campo === 'risco') {
+                valA = getGrupoRisco(a);
+                valB = getGrupoRisco(b);
+                return direcao === 'asc' ? valA - valB : valB - valA;
+            } else if (campo === 'dias') {
+                valA = Number(a.dias || 0);
+                valB = Number(b.dias || 0);
+                return direcao === 'asc' ? valA - valB : valB - valA;
+            }
+            return 0;
+        });
+    }
+
     toggleAuthMode(mode) {
         if (mode === 'register') {
             document.getElementById('form-login').style.display = 'none';
@@ -220,8 +423,7 @@ export class DashboardController {
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('main-app').style.display = 'flex';
                 
-                // Atualizar o nome do médico logado na sidebar (opcional)
-                // Ex: document.querySelector('.doctor-name').textContent = data.data.nome;
+                this.atualizarPerfilSidebar(data.data);
             } else {
                 errorEl.textContent = data.detail || 'Carteira ou senha incorretos.';
                 errorEl.style.display = 'block';
@@ -298,6 +500,12 @@ export class DashboardController {
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             elementoMenu.classList.add('active');
         }
+
+        if (idView === 'relatorios') {
+            this.carregarRelatorios();
+        } else if (idView === 'configuracoes') {
+            this.carregarConfiguracoes();
+        }
     }
 
     async abrirDetalhes(idPac) {
@@ -309,14 +517,15 @@ export class DashboardController {
 
         document.getElementById('det-avatar').textContent = p.iniciais || p.nome.substring(0, 2).toUpperCase();
         document.getElementById('det-nome').textContent = p.nome;
-        document.getElementById('det-idade').textContent = p.idade;
-        document.getElementById('det-tel').textContent = p.tel ? ('📞 ' + p.tel) : '';
+        document.getElementById('det-idade').textContent = p.idade + ' anos';
+        const telefone = p.tel || p.telefone;
+        document.getElementById('det-tel').textContent = telefone ? ('📞 ' + telefone) : '';
         
         const btnLigar = document.getElementById('btn-ligar');
         const btnWpp = document.getElementById('btn-whatsapp');
         
-        if (p.tel && p.tel.trim() !== '') {
-            const numeroLimpo = p.tel.replace(/\D/g, '');
+        if (telefone && telefone.trim() !== '') {
+            const numeroLimpo = telefone.replace(/\D/g, '');
             
             // Botão Clássico de Ligação
             if (btnLigar) {
@@ -352,12 +561,19 @@ export class DashboardController {
         document.getElementById('det-score').textContent = p.score || p.scoreAtual;
         
         const trendEl = document.getElementById('det-trend');
-        trendEl.textContent = p.trend;
+        trendEl.textContent = p.trend || '';
         trendEl.style.color = p.trendColor || '#666';
         
+        let riscoBadgeClass = 'badge-gray';
+        const riscoNome = p.grupo || p.grupoAtual || 'Risco Indefinido';
+        if (riscoNome.includes('Grupo A')) riscoBadgeClass = 'badge-blue';
+        else if (riscoNome.includes('Grupo B')) riscoBadgeClass = 'badge-green';
+        else if (riscoNome.includes('Grupo C')) riscoBadgeClass = 'badge-yellow';
+        else if (riscoNome.includes('Grupo D')) riscoBadgeClass = 'badge-red';
+
         const badge = document.getElementById('det-badge');
-        badge.textContent = p.grupo || p.grupoAtual;
-        badge.className = 'badge ' + (p.grupo === 'Grupo C' ? 'badge-orange-outline' : 'badge-yellow-outline');
+        badge.textContent = riscoNome;
+        badge.className = 'badge ' + riscoBadgeClass;
 
         const comorbContainer = document.getElementById('det-comorb');
         comorbContainer.innerHTML = '';
@@ -392,11 +608,16 @@ export class DashboardController {
                     });
                 }
 
+                let histBadgeClass = 'badge-green';
+                if (h.grupo === 'Grupo D') histBadgeClass = 'badge-red';
+                else if (h.grupo === 'Grupo C') histBadgeClass = 'badge-orange-outline';
+                else if (h.grupo === 'Grupo B') histBadgeClass = 'badge-yellow';
+
                 const histCard = `
                     <div class="history-card">
                         <div class="history-header">
                             <div><strong>Dia ${h.dia}</strong></div>
-                            <span class="badge ${h.grupo === 'Grupo C' ? 'badge-orange-outline' : 'badge-yellow-outline'}">${h.grupo}</span>
+                            <span class="badge ${histBadgeClass}">${h.grupo}</span>
                         </div>
                         ${vitaisHtml}
                         <div class="tags-container">${sintomasHtml}</div>
@@ -442,6 +663,400 @@ export class DashboardController {
                 scales: { y: { beginAtZero: true, max: 100 }, x: { grid: { display: false } } }
             }
         });
+    }
+
+    async carregarRelatorios() {
+        try {
+            const data = await this.repo.getReportsData();
+            if (!data) return;
+
+            this.renderizarRelatorioRisco(data.risco);
+            this.renderizarRelatorioIdades(data.faixas_etarias);
+            this.renderizarRelatorioSintomas(data.sintomas);
+            this.renderizarRelatorioComorbidades(data.comorbidades);
+        } catch (error) {
+            console.error('Erro ao carregar relatórios:', error);
+        }
+    }
+
+    renderizarRelatorioRisco(risco) {
+        const ctx = document.getElementById('chartRisco').getContext('2d');
+        if (this.chartRiscoInstance) this.chartRiscoInstance.destroy();
+
+        const mappedLabels = [];
+        const mappedValues = [];
+        const mappedColors = [];
+        
+        if (risco['Grupo A'] !== undefined) { mappedLabels.push('Grupo A'); mappedValues.push(risco['Grupo A']); mappedColors.push('#00a2e8'); }
+        if (risco['Grupo B'] !== undefined) { mappedLabels.push('Grupo B'); mappedValues.push(risco['Grupo B']); mappedColors.push('#22b14c'); }
+        if (risco['Grupo C'] !== undefined) { mappedLabels.push('Grupo C'); mappedValues.push(risco['Grupo C']); mappedColors.push('#ffc20e'); }
+        if (risco['Grupo D'] !== undefined) { mappedLabels.push('Grupo D'); mappedValues.push(risco['Grupo D']); mappedColors.push('#ed1c24'); }
+
+        this.chartRiscoInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: mappedLabels,
+                datasets: [{
+                    data: mappedValues,
+                    backgroundColor: mappedColors,
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, font: { family: 'Segoe UI', size: 12 } }
+                    }
+                },
+                cutout: '60%'
+            }
+        });
+    }
+
+    renderizarRelatorioIdades(idades) {
+        const ctx = document.getElementById('chartIdades').getContext('2d');
+        if (this.chartIdadesInstance) this.chartIdadesInstance.destroy();
+
+        const labels = Object.keys(idades || {});
+        const values = Object.values(idades || {});
+
+        this.chartIdadesInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Quantidade',
+                    data: values,
+                    backgroundColor: '#1a73e8',
+                    borderRadius: 6,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    renderizarRelatorioSintomas(sintomas) {
+        const ctx = document.getElementById('chartSintomas').getContext('2d');
+        if (this.chartSintomasInstance) this.chartSintomasInstance.destroy();
+
+        const sortedEntries = Object.entries(sintomas || {}).sort((a, b) => b[1] - a[1]);
+        const labels = sortedEntries.map(e => e[0]);
+        const values = sortedEntries.map(e => e[1]);
+
+        this.chartSintomasInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Incidências',
+                    data: values,
+                    backgroundColor: 'rgba(79, 70, 229, 0.85)',
+                    borderRadius: 6,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    renderizarRelatorioComorbidades(comorbidades) {
+        const tbody = document.getElementById('relatorios-comorbidades-tabela');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        const sortedComorb = Object.entries(comorbidades || {}).sort((a, b) => b[1] - a[1]);
+        
+        if (sortedComorb.length === 0 || sortedComorb.every(c => c[1] === 0)) {
+            tbody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: #666; padding: 20px;">Nenhuma comorbidade registrada nos pacientes.</td></tr>`;
+            return;
+        }
+
+        sortedComorb.forEach(([nome, qtd]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); color: var(--text-main); font-weight: 500;">
+                    ${nome}
+                </td>
+                <td style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); text-align: right; font-weight: 600; color: #333;">
+                    ${qtd} ${qtd === 1 ? 'paciente' : 'pacientes'}
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // ==========================================
+    // LÓGICA DE PERFIL E CONFIGURAÇÕES DO MÉDICO
+    // ==========================================
+    atualizarPerfilSidebar(user) {
+        if (!user) return;
+        const nomeEl = document.getElementById('sidebar-dr-nome');
+        const ubsEl = document.getElementById('sidebar-dr-ubs');
+        const avatarEl = document.getElementById('sidebar-dr-avatar');
+        
+        if (nomeEl) nomeEl.textContent = "Dr(a). " + user.nome;
+        if (ubsEl) ubsEl.textContent = user.ubs || "Nenhuma UBS vinculada";
+        if (avatarEl) {
+            const iniciais = user.nome.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+            avatarEl.textContent = iniciais;
+        }
+    }
+
+    carregarConfiguracoes() {
+        const userStr = localStorage.getItem('denguecare_user');
+        if (!userStr) return;
+        const user = JSON.parse(userStr);
+        
+        document.getElementById('conf-nome').value = user.nome || '';
+        document.getElementById('conf-crm').value = user.carteira || '';
+        document.getElementById('conf-ubs').value = user.ubs || '';
+        document.getElementById('conf-senha').value = '';
+        document.getElementById('conf-msg').style.display = 'none';
+    }
+
+    async salvarConfiguracoes() {
+        const userStr = localStorage.getItem('denguecare_user');
+        if (!userStr) return;
+        const user = JSON.parse(userStr);
+        
+        const novoNome = document.getElementById('conf-nome').value.trim();
+        const novaSenha = document.getElementById('conf-senha').value.trim();
+        const novaUbs = document.getElementById('conf-ubs').value;
+        const msgEl = document.getElementById('conf-msg');
+        
+        try {
+            const dataToUpdate = {
+                carteira: user.carteira,
+                nome: novoNome !== '' ? novoNome : undefined,
+                senha: novaSenha !== '' ? novaSenha : undefined,
+                ubs: novaUbs !== '' ? novaUbs : undefined
+            };
+            
+            const response = await this.repo.updateProfile(dataToUpdate);
+            if (response && response.success) {
+                msgEl.textContent = "Configurações atualizadas com sucesso!";
+                msgEl.style.color = "var(--primary-blue)";
+                msgEl.style.display = "block";
+                
+                // Atualizar cache local
+                user.nome = response.data.nome;
+                user.ubs = response.data.ubs;
+                localStorage.setItem('denguecare_user', JSON.stringify(user));
+                this.atualizarPerfilSidebar(user);
+            }
+        } catch (error) {
+            console.error(error);
+            msgEl.textContent = "Erro ao atualizar configurações.";
+            msgEl.style.color = "var(--red-alert)";
+            msgEl.style.display = "block";
+        }
+    }
+
+    async inativarCadastroMedico() {
+        const userStr = localStorage.getItem('denguecare_user');
+        if (!userStr) return;
+        const user = JSON.parse(userStr);
+        
+        const confirmacao = confirm("ATENÇÃO: Você está prestes a inativar seu cadastro. Após confirmar, você será deslogado imediatamente e precisará entrar em contato com o administrador do sistema para reativar seu acesso. Deseja continuar?");
+        if (!confirmacao) return;
+        
+        try {
+            const response = await this.repo.inactivateProfile(user.carteira);
+            if (response && response.success) {
+                alert("Seu cadastro foi inativado com sucesso. Você será deslogado.");
+                this.fazerLogout();
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Ocorreu um erro ao inativar o cadastro.");
+        }
+    }
+
+    // ==========================================
+    // LÓGICA DE PACIENTES (BUSCA, MODAL, CADASTRO, INATIVAÇÃO)
+    // ==========================================
+    filtrarPacientes(termo) {
+        termo = termo.toLowerCase().trim();
+        const trs = document.querySelectorAll('#lista-pacientes-tabela tr');
+        
+        let countVisible = 0;
+        trs.forEach(tr => {
+            // Assume the name is in the first column strong tag
+            const nameEl = tr.querySelector('.patient-name-col strong');
+            if(!nameEl) return;
+            const nome = nameEl.textContent.toLowerCase();
+            // We can't search telephone easily from the TR since we don't display it in the table.
+            // But we have this.pacientesExibidos to map it if needed. 
+            // For simplicity, let's search via DOM if possible, or using the array.
+            
+            // Wait, to support searching by phone, we should use this.pacientesExibidos
+            const a = tr.querySelector('a');
+            if(!a) return;
+            const onclickText = a.getAttribute('onclick') || '';
+            const match = onclickText.match(/'([^']+)'/);
+            const id = match ? match[1] : null;
+            
+            let matchEncontrado = false;
+            if(id) {
+                const pacienteData = this.pacientesExibidos.find(p => p.id == id);
+                if(pacienteData) {
+                    const telMatch = (pacienteData.tel || pacienteData.telefone || '').toLowerCase().includes(termo);
+                    const nomeMatch = (pacienteData.nome || '').toLowerCase().includes(termo);
+                    matchEncontrado = telMatch || nomeMatch;
+                }
+            } else {
+                matchEncontrado = nome.includes(termo);
+            }
+            
+            if (matchEncontrado) {
+                tr.style.display = '';
+                countVisible++;
+            } else {
+                tr.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('total-pacientes-list-count').textContent = countVisible;
+    }
+
+    abrirModalCadastro() {
+        document.getElementById('modal-cadastro-title').textContent = "Cadastrar Novo Paciente";
+        document.getElementById('btn-submit-paciente').textContent = "Iniciar Monitoramento";
+        document.getElementById('paciente-edit-id').value = "";
+        document.getElementById('form-paciente').reset();
+        document.getElementById('modal-cadastro').style.display = 'flex';
+    }
+
+    fecharModalCadastro() {
+        document.getElementById('modal-cadastro').style.display = 'none';
+    }
+
+    async editarPacienteAtual() {
+        // Obter os detalhes do paciente já carregados na página
+        const avatar = document.getElementById('det-avatar');
+        if(!avatar) return;
+        
+        // Puxar da view atual (podemos fazer uma requisição novamente, mas vamos puxar o ID da nav)
+        // Para simplificar, vou puxar o nome do h2 e tentar achar no array de pacientes
+        const nomeAtual = document.getElementById('det-nome').textContent;
+        const p = this.pacientesExibidos.find(x => x.nome === nomeAtual);
+        if(!p) {
+            alert("Não foi possível carregar os dados completos do paciente.");
+            return;
+        }
+        
+        const pacienteDetalhe = await this.repo.getPatientById(p.id);
+        if(!pacienteDetalhe) {
+            alert("Erro ao buscar dados do paciente.");
+            return;
+        }
+
+        document.getElementById('modal-cadastro-title').textContent = "Alterar Dados do Paciente";
+        document.getElementById('btn-submit-paciente').textContent = "Confirmar Modificações";
+        document.getElementById('paciente-edit-id').value = pacienteDetalhe.id;
+        
+        document.getElementById('cad-nome').value = pacienteDetalhe.nome || '';
+        document.getElementById('cad-tel').value = pacienteDetalhe.tel || pacienteDetalhe.telefone || '';
+        document.getElementById('cad-data').value = ""; // não temos esse dado exato retornado na rota detalhe, mas...
+        document.getElementById('cad-ubs').value = pacienteDetalhe.ubs || '';
+        
+        document.getElementById('cad-diabetes').checked = (pacienteDetalhe.comorb || []).includes('Diabetes');
+        document.getElementById('cad-hipertensa').checked = (pacienteDetalhe.comorb || []).includes('Hipertensão');
+        document.getElementById('cad-renal').checked = (pacienteDetalhe.comorb || []).includes('Doença Renal');
+        document.getElementById('cad-hematolog').checked = (pacienteDetalhe.comorb || []).includes('Hematológica');
+        document.getElementById('cad-hepatopat').checked = (pacienteDetalhe.comorb || []).includes('Hepatopatia');
+        document.getElementById('cad-acido').checked = (pacienteDetalhe.comorb || []).includes('Úlcera Péptica');
+        document.getElementById('cad-auto').checked = (pacienteDetalhe.comorb || []).includes('Doença Autoimune');
+        
+        document.getElementById('cad-termo').checked = true;
+        
+        document.getElementById('modal-cadastro').style.display = 'flex';
+    }
+
+    async submeterPaciente() {
+        const idEdicao = document.getElementById('paciente-edit-id').value;
+        const reqData = {
+            nome: document.getElementById('cad-nome').value,
+            telefone: document.getElementById('cad-tel').value,
+            dt_sin_pri: document.getElementById('cad-data').value,
+            ubs: document.getElementById('cad-ubs').value,
+            diabetes: document.getElementById('cad-diabetes').checked,
+            hipertensa: document.getElementById('cad-hipertensa').checked,
+            renal: document.getElementById('cad-renal').checked,
+            hematolog: document.getElementById('cad-hematolog').checked,
+            hepatopat: document.getElementById('cad-hepatopat').checked,
+            acido_pept: document.getElementById('cad-acido').checked,
+            auto_imune: document.getElementById('cad-auto').checked
+        };
+        
+        try {
+            if(idEdicao && idEdicao !== "") {
+                const res = await this.repo.updatePatient(idEdicao, reqData);
+                if(res && res.success) {
+                    alert("Dados do paciente atualizados com sucesso!");
+                    this.fecharModalCadastro();
+                    this.abrirDetalhes(idEdicao); // recarrega tela de detalhes
+                    this.carregarTabelaPacientes(); // recarrega fila de fundo
+                }
+            } else {
+                const res = await this.repo.createPatient(reqData);
+                if(res && res.success) {
+                    alert("Paciente cadastrado e monitoramento iniciado!");
+                    this.fecharModalCadastro();
+                    this.carregarTabelaPacientes(); // recarrega fila
+                }
+            }
+        } catch(error) {
+            console.error(error);
+            alert("Erro ao salvar paciente.");
+        }
+    }
+
+    abrirModalInativarPaciente() {
+        document.getElementById('modal-inativar').style.display = 'flex';
+    }
+
+    async confirmarInativarPaciente() {
+        const motivo = document.getElementById('inativar-motivo').value;
+        const nomeAtual = document.getElementById('det-nome').textContent;
+        const p = this.pacientesExibidos.find(x => x.nome === nomeAtual);
+        if(!p) return;
+        
+        try {
+            const res = await this.repo.inactivatePatient(p.id, motivo);
+            if(res && res.success) {
+                alert("Paciente inativado. O administrador poderá reativá-lo futuramente.");
+                document.getElementById('modal-inativar').style.display = 'none';
+                this.navegar('pacientes'); // volta para a fila
+                this.carregarTabelaPacientes(); // recarrega
+            }
+        } catch(error) {
+            console.error(error);
+            alert("Erro ao inativar paciente.");
+        }
     }
 }
 

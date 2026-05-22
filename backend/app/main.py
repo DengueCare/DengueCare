@@ -22,15 +22,15 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("SELECT 1"))
         
         latency = round((time.perf_counter() - start_time) * 1000, 2)
-        print(f"\n✅ [SUPABASE] Conexão estabelecida com sucesso! Ping: {latency}ms\n")
+        print(f"\n[OK] [SUPABASE] Conexão estabelecida com sucesso! Ping: {latency}ms\n")
     except Exception as e:
-        print(f"\n❌ [SUPABASE] Falha crítica de conexão na inicialização: {str(e)}\n")
+        print(f"\n[ERROR] [SUPABASE] Falha crítica de conexão na inicialização: {str(e)}\n")
     
     yield # O servidor fica rodando aqui, aceitando requisições do chat
     
     # Executa exatamente UMA VEZ quando o servidor desliga (Ctrl+C)
     await engine.dispose()
-    print("\n🛑 [SUPABASE] Pool de conexões encerrado com segurança.\n")
+    print("\n[SHUTDOWN] [SUPABASE] Pool de conexões encerrado com segurança.\n")
 
 # ==========================================
 # INICIALIZAÇÃO DA APLICAÇÃO

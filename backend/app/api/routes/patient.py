@@ -5,6 +5,35 @@ from app.api.dependencies import get_db
 from app.services.atendimento_service import buscar_historico_atendimentos
 from app.services.bot_service import detectar_evolucao
 from datetime import date, datetime
+from pydantic import BaseModel
+from typing import Optional
+
+class PatientCreateRequest(BaseModel):
+    nome: str
+    telefone: str
+    dt_sin_pri: str
+    diabetes: bool = False
+    hematolog: bool = False
+    hepatopat: bool = False
+    renal: bool = False
+    hipertensa: bool = False
+    acido_pept: bool = False
+    auto_imune: bool = False
+
+class PatientUpdateRequest(BaseModel):
+    nome: Optional[str] = None
+    telefone: Optional[str] = None
+    dt_sin_pri: Optional[str] = None
+    diabetes: Optional[bool] = None
+    hematolog: Optional[bool] = None
+    hepatopat: Optional[bool] = None
+    renal: Optional[bool] = None
+    hipertensa: Optional[bool] = None
+    acido_pept: Optional[bool] = None
+    auto_imune: Optional[bool] = None
+
+class PatientInactivateRequest(BaseModel):
+    motivo_inativacao: str
 
 router = APIRouter()
 
@@ -14,7 +43,7 @@ async def get_all_patients(db: AsyncSession = Depends(get_db)):
     Busca todos os pacientes e anexa os dados de risco baseados no histórico.
     """
     try:
-        result = await db.execute(text("SELECT * FROM paciente"))
+        result = await db.execute(text("SELECT * FROM paciente WHERE status = 'ativo' OR status IS NULL"))
         pacientes = result.fetchall()
         
         formatted_data = []
@@ -172,6 +201,99 @@ async def get_patient_by_id(patient_id: int, db: AsyncSession = Depends(get_db))
             "historico": historico_formatado,
             "piorou": piorou
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/")
+async def create_patient(req: PatientCreateRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        query = """
+            INSERT INTO paciente (
+                nm_usuario, telefone, diabetes, hematolog, hepatopat, renal, hipertensa, acido_pept, auto_imune, status
+            ) VALUES (
+                :nome, :telefone, :diabetes, :hematolog, :hepatopat, :renal, :hipertensa, :acido_pept, :auto_imune, 'ativo'
+            ) RETURNING id
+        """
+        params = {
+            "nome": req.nome,
+            "telefone": req.telefone,
+            "diabetes": "1" if req.diabetes else "0",
+            "hematolog": "1" if req.hematolog else "0",
+            "hepatopat": "1" if req.hepatopat else "0",
+            "renal": "1" if req.renal else "0",
+            "hipertensa": "1" if req.hipertensa else "0",
+            "acido_pept": "1" if req.acido_pept else "0",
+            "auto_imune": "1" if req.auto_imune else "0",
+        }
+        res = await db.execute(text(query), params)
+        await db.commit()
+        row = res.fetchone()
+        
+        # Opcional: criar um atendimento inicial para gravar a data dt_sin_pri se fosse necessário
+        # ...
+        
+        return {"success": True, "message": "Paciente cadastrado com sucesso", "id": row[0] if row else None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{patient_id}")
+async def update_patient(patient_id: int, req: PatientUpdateRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        updates = []
+        params = {"id": patient_id}
+        
+        if req.nome is not None:
+            updates.append("nm_usuario = :nome")
+            params["nome"] = req.nome
+        if req.telefone is not None:
+            updates.append("telefone = :telefone")
+            params["telefone"] = req.telefone
+        if req.diabetes is not None:
+            updates.append("diabetes = :diabetes")
+            params["diabetes"] = "1" if req.diabetes else "0"
+        if req.hematolog is not None:
+            updates.append("hematolog = :hematolog")
+            params["hematolog"] = "1" if req.hematolog else "0"
+        if req.hepatopat is not None:
+            updates.append("hepatopat = :hepatopat")
+            params["hepatopat"] = "1" if req.hepatopat else "0"
+        if req.renal is not None:
+            updates.append("renal = :renal")
+            params["renal"] = "1" if req.renal else "0"
+        if req.hipertensa is not None:
+            updates.append("hipertensa = :hipertensa")
+            params["hipertensa"] = "1" if req.hipertensa else "0"
+        if req.acido_pept is not None:
+            updates.append("acido_pept = :acido_pept")
+            params["acido_pept"] = "1" if req.acido_pept else "0"
+        if req.auto_imune is not None:
+            updates.append("auto_imune = :auto_imune")
+            params["auto_imune"] = "1" if req.auto_imune else "0"
+            
+        if not updates:
+            return {"success": True, "message": "Nada a atualizar"}
+            
+        query = "UPDATE paciente SET " + ", ".join(updates) + " WHERE id = :id"
+        res = await db.execute(text(query), params)
+        await db.commit()
+        
+        return {"success": True, "message": "Paciente atualizado com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/{patient_id}/inactivate")
+async def inactivate_patient(patient_id: int, req: PatientInactivateRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        query = "UPDATE paciente SET status = 'inativo', motivo_inativacao = :motivo WHERE id = :id"
+        res = await db.execute(text(query), {"id": patient_id, "motivo": req.motivo_inativacao})
+        await db.commit()
+        
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Paciente não encontrado")
+            
+        return {"success": True, "message": "Paciente inativado com sucesso"}
     except HTTPException:
         raise
     except Exception as e:

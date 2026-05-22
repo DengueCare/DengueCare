@@ -28,3 +28,5 @@ modelos_ml/*.joblib
 .locust/
 *.pdf
 .pytest_cache/
+implementation_plan.md
+walkthrough.md

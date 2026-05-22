@@ -44,9 +44,9 @@ async def registrar_profissional(db: AsyncSession, nome: str, carteira: str, sen
     # 3. Inserir no banco
     insert_result = await db.execute(
         text('''
-            INSERT INTO profissional (nome, carteira, senha_hash, salt)
-            VALUES (:nome, :carteira, :senha_hash, :salt)
-            RETURNING id, nome, carteira, dt_criacao
+            INSERT INTO profissional (nome, carteira, senha_hash, salt, status)
+            VALUES (:nome, :carteira, :senha_hash, :salt, 'ativo')
+            RETURNING id, nome, carteira, ubs, status, dt_criacao
         '''),
         {
             "nome": nome,
@@ -65,7 +65,7 @@ async def autenticar_profissional(db: AsyncSession, carteira: str, senha: str) -
     Retorna os dados do profissional se sucesso, ou None se falhar.
     """
     result = await db.execute(
-        text("SELECT id, nome, carteira, senha_hash, salt FROM profissional WHERE carteira = :carteira"),
+        text("SELECT id, nome, carteira, senha_hash, salt, ubs, status FROM profissional WHERE carteira = :carteira"),
         {"carteira": carteira}
     )
     row = result.fetchone()
@@ -75,6 +75,9 @@ async def autenticar_profissional(db: AsyncSession, carteira: str, senha: str) -
         
     prof = dict(row._mapping)
     
+    if prof.get("status") == "inativo":
+        raise ValueError("Conta inativada. Entre em contato com o administrador.")
+    
     if verify_password(prof["senha_hash"], prof["salt"], senha):
         # Remove dados sensíveis antes de retornar
         prof.pop("senha_hash")
@@ -83,9 +86,9 @@ async def autenticar_profissional(db: AsyncSession, carteira: str, senha: str) -
         
     return None # Senha incorreta
 
-async def atualizar_profissional(db: AsyncSession, carteira: str, novo_nome: str = None, nova_senha: str = None) -> dict | None:
+async def atualizar_profissional(db: AsyncSession, carteira: str, novo_nome: str = None, nova_senha: str = None, nova_ubs: str = None) -> dict | None:
     """
-    Atualiza o nome e/ou a senha do profissional.
+    Atualiza o nome, senha e/ou ubs do profissional.
     """
     # Verifica se existe
     result = await db.execute(
@@ -103,6 +106,10 @@ async def atualizar_profissional(db: AsyncSession, carteira: str, novo_nome: str
         updates.append("nome = :nome")
         params["nome"] = novo_nome
         
+    if nova_ubs:
+        updates.append("ubs = :ubs")
+        params["ubs"] = nova_ubs
+        
     if nova_senha:
         senha_hash, salt = hash_password(nova_senha)
         updates.append("senha_hash = :senha_hash")
@@ -113,10 +120,21 @@ async def atualizar_profissional(db: AsyncSession, carteira: str, novo_nome: str
     if not updates:
         return None
 
-    query += ", ".join(updates) + " WHERE carteira = :carteira RETURNING id, nome, carteira, dt_criacao"
+    query += ", ".join(updates) + " WHERE carteira = :carteira RETURNING id, nome, carteira, ubs, status, dt_criacao"
     
     update_result = await db.execute(text(query), params)
     await db.commit()
     
     row = update_result.fetchone()
     return dict(row._mapping) if row else None
+
+async def inativar_profissional(db: AsyncSession, carteira: str) -> bool:
+    """
+    Inativa a conta de um profissional da saúde.
+    """
+    result = await db.execute(
+        text("UPDATE profissional SET status = 'inativo' WHERE carteira = :carteira RETURNING id"),
+        {"carteira": carteira}
+    )
+    await db.commit()
+    return result.fetchone() is not None
