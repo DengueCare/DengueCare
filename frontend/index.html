@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DengueCare AI - Portal de Acesso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-glow: rgba(26, 115, 232, 0.4);
+            --bg: #0b0f19;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-hover-border: rgba(26, 115, 232, 0.5);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(26, 115, 232, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.1) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+            animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .logo-badge {
+            background: rgba(26, 115, 232, 0.1);
+            border: 1px solid rgba(26, 115, 232, 0.2);
+            padding: 8px 16px;
+            border-radius: 100px;
+            color: #60a5fa;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff 30%, #93c5fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: var(--text-muted);
+            margin-bottom: 45px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 640px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            h1 { font-size: 32px; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            cursor: pointer;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 20px;
+            padding: 1px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            transition: all 0.4s;
+        }
+
+        .card-icon {
+            font-size: 40px;
+            background: rgba(255, 255, 255, 0.03);
+            width: 80px;
+            height: 80px;
+            border-radius: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .card h2 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #ffffff;
+            transition: all 0.3s;
+        }
+
+        .card p {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .card-action {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+
+        /* Hover Effects */
+        .card:hover {
+            transform: translateY(-6px);
+            border-color: var(--card-hover-border);
+            background: rgba(26, 115, 232, 0.02);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px var(--primary-glow);
+        }
+
+        .card:hover .card-icon {
+            background: var(--primary);
+            border-color: transparent;
+            transform: scale(1.1) rotate(3deg);
+            box-shadow: 0 10px 25px var(--primary-glow);
+        }
+
+        .card:hover h2 {
+            color: #93c5fd;
+        }
+
+        .card:hover .card-action {
+            color: #60a5fa;
+            gap: 12px;
+        }
+
+        footer {
+            margin-top: auto;
+            color: #475569;
+            font-size: 13px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="logo-badge">
+            <span>🦟</span> DengueCare AI Portal
+        </div>
+        <h1>Portal de Aplicações</h1>
+        <p class="subtitle">Selecione o painel de acesso de acordo com o seu perfil de usuário.</p>
+
+        <div class="grid">
+            <!-- CARD 1: DASHBOARD MÉDICO -->
+            <a href="src/presentation/dashboard/views/index.html" class="card">
+                <div class="card-icon">📊</div>
+                <h2>Painel do Médico</h2>
+                <p>Acompanhamento de fila prioritária de triagem, score de risco clínico em tempo real e encaminhamento hospitalar.</p>
+                <div class="card-action">
+                    Acessar Painel ➔
+                </div>
+            </a>
+
+            <!-- CARD 2: CHATBOT WEB -->
+            <a href="src/presentation/web/views/index.html" class="card">
+                <div class="card-icon">💬</div>
+                <h2>Chatbot de Triagem</h2>
+                <p>Simulação e interface web do bot de telemonitoramento diário de sintomas para pacientes cadastrados.</p>
+                <div class="card-action">
+                    Iniciar Chatbot ➔
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        Desenvolvido para UBS - Fatec Rio Claro &copy; 2026
+    </footer>
+
+</body>
+</html>
