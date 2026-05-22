@@ -151,4 +151,19 @@ export class PatientAPIRepository {
             return null;
         }
     }
+
+    async getAdmissionsData(days = 30) {
+        try {
+            const response = await fetch(`${this.baseUrl}/dashboard/admissions?days=${days}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const res = await response.json();
+            return res.data;
+        } catch (error) {
+            console.error('Erro ao buscar admissões:', error);
+            return null;
+        }
+    }
 }

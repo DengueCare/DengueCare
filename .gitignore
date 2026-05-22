@@ -30,3 +30,5 @@ modelos_ml/*.joblib
 .pytest_cache/
 implementation_plan.md
 walkthrough.md
+backend/migrate_db.py
+backend/schema_dump.py

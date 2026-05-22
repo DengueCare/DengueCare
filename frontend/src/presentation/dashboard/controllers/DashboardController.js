@@ -14,6 +14,7 @@ export class DashboardController {
         this.chartRiscoInstance = null;
         this.chartIdadesInstance = null;
         this.chartSintomasInstance = null;
+        this.chartAdmissoesInstance = null;
         
         // Expose functions to the window object so inline HTML onclicks work without rewriting HTML
         window.fazerLogin = this.fazerLogin.bind(this);
@@ -33,6 +34,8 @@ export class DashboardController {
         window.confirmarInativarPaciente = this.confirmarInativarPaciente.bind(this);
         window.salvarConfiguracoes = this.salvarConfiguracoes.bind(this);
         window.inativarCadastroMedico = this.inativarCadastroMedico.bind(this);
+        window.toggleAdmissionsChart = this.toggleAdmissionsChart.bind(this);
+        window.filtrarGraficoAdmissoes = this.filtrarGraficoAdmissoes.bind(this);
 
         this.alertedPatients = new Set();
         this.alertasDescartados = {}; // Armazena { "id_paciente": "dt_ultima_triagem_descartada" }
@@ -227,7 +230,7 @@ export class DashboardController {
         });
         
         // Atualiza a Visão Geral com o feed dinâmico de alertas cronológicos
-        this.renderizarAlertas(pacientesArray);
+        this.renderizarAlertas(this.pacientesExibidos);
     }
 
     mostrarAlertaPiora(paciente) {
@@ -663,6 +666,78 @@ export class DashboardController {
                 scales: { y: { beginAtZero: true, max: 100 }, x: { grid: { display: false } } }
             }
         });
+    }
+
+    async toggleAdmissionsChart() {
+        const container = document.getElementById('admissoes-chart-container');
+        if (!container) return;
+
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            await this.atualizarGraficoAdmissoes(7); // padrão: 7 dias
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    async filtrarGraficoAdmissoes(dias, buttonEl) {
+        const buttons = document.querySelectorAll('.chart-filter-buttons .btn-filter');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        if (buttonEl) buttonEl.classList.add('active');
+
+        await this.atualizarGraficoAdmissoes(dias);
+    }
+
+    async atualizarGraficoAdmissoes(dias) {
+        try {
+            const data = await this.repo.getAdmissionsData(dias);
+            if (!data) return;
+
+            const ctx = document.getElementById('chartAdmissoes').getContext('2d');
+            if (this.chartAdmissoesInstance) this.chartAdmissoesInstance.destroy();
+
+            // Ordenando chaves (datas) cronologicamente
+            const sortedDates = Object.keys(data).sort();
+            const values = sortedDates.map(date => data[date]);
+            
+            // Formatando as datas para exibição (ex: "22/05")
+            const labels = sortedDates.map(dateStr => {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}/${parts[1]}`;
+                }
+                return dateStr;
+            });
+
+            this.chartAdmissoesInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Novos Pacientes',
+                        data: values,
+                        borderColor: '#9334e6',
+                        backgroundColor: 'rgba(147, 52, 230, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#9334e6',
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao atualizar gráfico de admissões:', error);
+        }
     }
 
     async carregarRelatorios() {
