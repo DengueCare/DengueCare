@@ -1002,7 +1002,7 @@ export class DashboardController {
             nome: document.getElementById('cad-nome').value,
             telefone: document.getElementById('cad-tel').value,
             dt_sin_pri: document.getElementById('cad-data').value,
-            ubs: document.getElementById('cad-ubs').value,
+            ubs_atual: document.getElementById('cad-ubs').value,
             diabetes: document.getElementById('cad-diabetes').checked,
             hipertensa: document.getElementById('cad-hipertensa').checked,
             renal: document.getElementById('cad-renal').checked,

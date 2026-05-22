@@ -12,6 +12,7 @@ class PatientCreateRequest(BaseModel):
     nome: str
     telefone: str
     dt_sin_pri: str
+    ubs_atual: Optional[str] = None
     diabetes: bool = False
     hematolog: bool = False
     hepatopat: bool = False
@@ -24,6 +25,7 @@ class PatientUpdateRequest(BaseModel):
     nome: Optional[str] = None
     telefone: Optional[str] = None
     dt_sin_pri: Optional[str] = None
+    ubs_atual: Optional[str] = None
     diabetes: Optional[bool] = None
     hematolog: Optional[bool] = None
     hepatopat: Optional[bool] = None
@@ -43,12 +45,16 @@ async def get_all_patients(db: AsyncSession = Depends(get_db)):
     Busca todos os pacientes e anexa os dados de risco baseados no histórico.
     """
     try:
-        result = await db.execute(text("SELECT * FROM paciente WHERE status = 'ativo' OR status IS NULL"))
+        result = await db.execute(text("SELECT * FROM paciente"))
         pacientes = result.fetchall()
         
         formatted_data = []
         for row in pacientes:
             paciente = dict(row._mapping)
+            
+            # Filtra inativos pelo Python para não quebrar em DBs sem a coluna 'status'
+            if paciente.get("status") == "inativo":
+                continue
             historico = await buscar_historico_atendimentos(db, paciente["id"], limite=2)
             
             piorou = False
@@ -191,6 +197,7 @@ async def get_patient_by_id(patient_id: int, db: AsyncSession = Depends(get_db))
             "iniciais": paciente["nm_usuario"][:2].upper() if paciente["nm_usuario"] else "--",
             "idade": f"{idade}",
             "tel": paciente.get("telefone", ""),
+            "ubs": paciente.get("ubs_atual", ""),
             "status": "Monitoramento Ativo" if not piorou else "Atenção Requerida",
             "score": scoreAtual,
             "trend": trend,
@@ -211,9 +218,9 @@ async def create_patient(req: PatientCreateRequest, db: AsyncSession = Depends(g
     try:
         query = """
             INSERT INTO paciente (
-                nm_usuario, telefone, diabetes, hematolog, hepatopat, renal, hipertensa, acido_pept, auto_imune, status
+                nm_usuario, telefone, diabetes, hematolog, hepatopat, renal, hipertensa, acido_pept, auto_imune, status, ubs_atual
             ) VALUES (
-                :nome, :telefone, :diabetes, :hematolog, :hepatopat, :renal, :hipertensa, :acido_pept, :auto_imune, 'ativo'
+                :nome, :telefone, :diabetes, :hematolog, :hepatopat, :renal, :hipertensa, :acido_pept, :auto_imune, 'ativo', :ubs_atual
             ) RETURNING id
         """
         params = {
@@ -226,6 +233,7 @@ async def create_patient(req: PatientCreateRequest, db: AsyncSession = Depends(g
             "hipertensa": "1" if req.hipertensa else "0",
             "acido_pept": "1" if req.acido_pept else "0",
             "auto_imune": "1" if req.auto_imune else "0",
+            "ubs_atual": req.ubs_atual,
         }
         res = await db.execute(text(query), params)
         await db.commit()
@@ -250,6 +258,9 @@ async def update_patient(patient_id: int, req: PatientUpdateRequest, db: AsyncSe
         if req.telefone is not None:
             updates.append("telefone = :telefone")
             params["telefone"] = req.telefone
+        if req.ubs_atual is not None:
+            updates.append("ubs_atual = :ubs_atual")
+            params["ubs_atual"] = req.ubs_atual
         if req.diabetes is not None:
             updates.append("diabetes = :diabetes")
             params["diabetes"] = "1" if req.diabetes else "0"
