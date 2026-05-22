@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.routes import chat, patient, dashboard, auth
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -142,6 +144,21 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+# Adiciona o middleware de CORS para aceitar conexões do Vercel
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Inclui as rotas da API no mesmo servidor que gerencia o webhook do bot
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["Web Chat Interface"])
+app.include_router(patient.router, prefix="/api/v1/patients", tags=["Medical Interface"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Triage Dashboard"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Autenticação de Profissionais"])
 
 
 # ==========================================
