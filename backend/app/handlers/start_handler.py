@@ -18,7 +18,7 @@ from telegram.ext import (
 
 from app.db.database import AsyncSessionLocal
 from app.services.patient_service import buscar_paciente_por_carteira, criar_paciente
-from app.services.atendimento_service import salvar_atendimento, buscar_ultimo_atendimento
+from app.services.atendimento_service import salvar_atendimento, buscar_ultimo_atendimento, buscar_historico_atendimentos
 from app.services.bot_service import (
     PERGUNTAS_TRIAGEM,
     RESPOSTAS_CLASSIFICACAO,
@@ -45,9 +45,10 @@ AGUARDANDO_RENAL = 8
 AGUARDANDO_HIPERTENSA = 9
 AGUARDANDO_ACIDO_PEPT = 10
 AGUARDANDO_AUTO_IMUNE = 11
+AGUARDANDO_TELEFONE = 12
 
 # Estados do fluxo de triagem
-TRIAGEM_PERGUNTA = 12
+TRIAGEM_PERGUNTA = 13
 
 
 # ==========================================
@@ -259,6 +260,30 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     context.user_data['auto_imune'] = float(query.data.split('_')[1])
+    
+    # Após responder auto_imune, pede o telefone
+    await query.edit_message_text(
+        "📱 Para finalizar, por favor, digite o seu *número de WhatsApp com DDD* (somente números).\n"
+        "Exemplo: `11999998888`",
+        parse_mode="Markdown"
+    )
+    return AGUARDANDO_TELEFONE
+
+
+async def handle_telefone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    telefone = update.message.text.strip()
+    # Remove qualquer caracter que não seja número
+    telefone_limpo = ''.join(filter(str.isdigit, telefone))
+    
+    if len(telefone_limpo) < 10:
+        await update.message.reply_text(
+            "⚠️ O número parece inválido. Por favor, digite o seu *WhatsApp com DDD* contendo apenas números.\n"
+            "Exemplo: `11999998888`",
+            parse_mode="Markdown"
+        )
+        return AGUARDANDO_TELEFONE
+        
+    context.user_data['telefone'] = telefone_limpo
     ud = context.user_data
 
     try:
@@ -271,7 +296,7 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
                     diabetes=ud['diabetes'], hematolog=ud['hematolog'],
                     hepatopat=ud['hepatopat'], renal=ud['renal'],
                     hipertensa=ud['hipertensa'], acido_pept=ud['acido_pept'],
-                    auto_imune=ud['auto_imune']
+                    auto_imune=ud['auto_imune'], telefone=ud['telefone']
                 )
                 paciente = await buscar_paciente_por_carteira(db, ud['cadastro_carteira'])
                 mensagem_final = "✅ *Perfil de saúde atualizado com sucesso\\!*"
@@ -282,17 +307,17 @@ async def callback_auto_imune(update: Update, context: ContextTypes.DEFAULT_TYPE
                     diabetes=ud['diabetes'], hematolog=ud['hematolog'],
                     hepatopat=ud['hepatopat'], renal=ud['renal'],
                     hipertensa=ud['hipertensa'], acido_pept=ud['acido_pept'],
-                    auto_imune=ud['auto_imune']
+                    auto_imune=ud['auto_imune'], telefone=ud['telefone']
                 )
                 mensagem_final = "🎉 *Cadastro realizado com sucesso\\!*"
 
         chaves_limpar = ['cadastro_nome', 'cadastro_carteira', 'cs_sexo',
                          'diabetes', 'hematolog', 'hepatopat', 'renal', 'hipertensa',
-                         'acido_pept', 'auto_imune', 'update_id', 'DT_NASCIMENTO']
+                         'acido_pept', 'auto_imune', 'update_id', 'DT_NASCIMENTO', 'telefone']
         for chave in chaves_limpar:
             ud.pop(chave, None)
 
-        await query.edit_message_text(mensagem_final, parse_mode="MarkdownV2")
+        await update.message.reply_text(mensagem_final, parse_mode="MarkdownV2")
         return await _exibir_menu_paciente(update, context, paciente)
 
     except Exception as e:
@@ -421,11 +446,20 @@ async def _finalizar_triagem(update: Update, context: ContextTypes.DEFAULT_TYPE)
         row = result.fetchone()
         comorbidades = dict(row._mapping) if row else {}
 
-    def to_float(val, default=2.0):
+    def parse_comorb(val):
+        """
+        Converte o valor do banco de dados para o formato do SINAN esperado pelo modelo ML:
+        1.0 = Sim
+        2.0 = Não
+        O banco pode armazenar 0 ou nulo para 'Não', ambos devem virar 2.0.
+        """
+        if val is None:
+            return 2.0
         try:
-            return float(val) if val is not None else default
+            f = float(val)
+            return 1.0 if f == 1.0 else 2.0
         except (ValueError, TypeError):
-            return default
+            return 2.0
 
     features = {
         "idade_anos":  idade_anos,
@@ -441,16 +475,28 @@ async def _finalizar_triagem(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "artrite":     float(respostas.get("artrite", "2")),
         "artralgia":   float(respostas.get("artralgia", "2")),
         "dor_retro":   float(respostas.get("dor_retro", "2")),
-        "diabetes":    to_float(comorbidades.get("diabetes")),
-        "hematolog":   to_float(comorbidades.get("hematolog")),
-        "hepatopat":   to_float(comorbidades.get("hepatopat")),
-        "renal":       to_float(comorbidades.get("renal")),
-        "hipertensa":  to_float(comorbidades.get("hipertensa")),
-        "acido_pept":  to_float(comorbidades.get("acido_pept")),
-        "auto_imune":  to_float(comorbidades.get("auto_imune")),
+        "diabetes":    parse_comorb(comorbidades.get("diabetes")),
+        "hematolog":   parse_comorb(comorbidades.get("hematolog")),
+        "hepatopat":   parse_comorb(comorbidades.get("hepatopat")),
+        "renal":       parse_comorb(comorbidades.get("renal")),
+        "hipertensa":  parse_comorb(comorbidades.get("hipertensa")),
+        "acido_pept":  parse_comorb(comorbidades.get("acido_pept")),
+        "auto_imune":  parse_comorb(comorbidades.get("auto_imune")),
     }
 
     classificacao = predict_classification(features)
+    
+    # --- TRAVA DE SEGURANÇA MÁXIMA (Sinais de Alarme) ---
+    dor_abd_val = respostas.get("dor_abd", "2")
+    sangram_val = respostas.get("sangram", "2")
+    letargia_val = respostas.get("letargia", "2")
+    
+    tem_sinal_alarme = "1" in [dor_abd_val, sangram_val, letargia_val]
+    
+    if tem_sinal_alarme:
+        classificacao = "C"
+        logger.warning(f"🚨 [Segurança] Paciente {paciente['id']} apresentou Sinais de Alarme! IA ignorada. Classificação travada em C.")
+    
     logger.info(f"Triagem finalizada — paciente {paciente['id']} | classificação: {classificacao}")
 
     evolucao_detectada = False
@@ -475,12 +521,15 @@ async def _finalizar_triagem(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 exantema=respostas.get("exantema", "2"),
                 vomito=respostas.get("vomito", "2"),
                 nausea=respostas.get("nausea", "2"),
-                dor_costas=respostas.get("dor_costas", "2"),
-                conjuntvit=respostas.get("conjuntvit", "2"),
-                artrite=respostas.get("artrite", "2"),
-                artralgia=respostas.get("artralgia", "2"),
-                dor_retro=respostas.get("dor_retro", "2"),
-                grupo_risco=classificacao,
+                dor_costas=str(respostas.get("dor_costas", "2")),
+                conjuntvit=str(respostas.get("conjuntvit", "2")),
+                artrite=str(respostas.get("artrite", "2")),
+                artralgia=str(respostas.get("artralgia", "2")),
+                dor_retro=str(respostas.get("dor_retro", "2")),
+                dor_abd=str(dor_abd_val),
+                sangram=str(sangram_val),
+                letargia=str(letargia_val),
+                grupo_risco=classificacao
             )
     except Exception as e:
         logger.error(f"Erro ao salvar atendimento: {e}")
@@ -605,7 +654,8 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
     sexo_texto = sexo_mapa.get(str(sexo_raw).upper(), "Não informado")
 
     keyboard = [
-        [InlineKeyboardButton("📋 Meu Acompanhamento", callback_data="acompanhamento")],
+        [InlineKeyboardButton("📋 Registrar Triagem Diária", callback_data="acompanhamento")],
+        [InlineKeyboardButton("📅 Ver Histórico de Atendimentos", callback_data="ver_historico")],
         [InlineKeyboardButton("📚 Guia Clínico - Ministério da Saúde", callback_data="baixar_cartilha")],
         [InlineKeyboardButton("⚙️ Atualizar Perfil de Saúde", callback_data="atualizar_dados")],
         [InlineKeyboardButton("🔄 Trocar Paciente", callback_data="trocar_paciente")],
@@ -628,6 +678,52 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
         await update.callback_query.edit_message_text(mensagem, parse_mode="MarkdownV2", reply_markup=InlineKeyboardMarkup(keyboard))
 
     return ConversationHandler.END
+
+
+# ==========================================
+# CALLBACKS: Histórico de Atendimentos
+# ==========================================
+async def callback_ver_historico(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    paciente = context.user_data.get("paciente")
+    if not paciente:
+        await query.edit_message_text("⚠️ Sessão expirada\\. Use /start para se identificar novamente\\.", parse_mode="MarkdownV2")
+        return ConversationHandler.END
+
+    try:
+        async with AsyncSessionLocal() as db:
+            historico = await buscar_historico_atendimentos(db, paciente['id'], limite=5)
+    except Exception as e:
+        logger.error(f"Erro ao buscar historico: {e}")
+        await query.edit_message_text("⚠️ Ocorreu um erro ao buscar o histórico\\.", parse_mode="MarkdownV2")
+        return ConversationHandler.END
+
+    if not historico:
+        mensagem = "📅 *Histórico de Atendimentos*\n\nVocê ainda não possui nenhuma triagem registrada\\.\nUse a opção *Registrar Triagem Diária* no menu principal\\."
+    else:
+        mensagem = f"📅 *Últimos Atendimentos de {_escape_md(paciente.get('nm_usuario', 'Paciente'))}*\n\n"
+        for reg in historico:
+            data_formatada = reg['dt_fim'].strftime("%d/%m/%Y %H:%M") if reg.get('dt_fim') else "Desconhecido"
+            risco = reg.get('grupo_risco', 'N/A')
+            mensagem += f"🔹 *{_escape_md(data_formatada)}* \\- Risco: {risco}\n"
+            
+            sintomas_destaque = []
+            if reg.get('febre') == '1' or reg.get('febre') == 1.0: sintomas_destaque.append('Febre')
+            if reg.get('cefaleia') == '1' or reg.get('cefaleia') == 1.0: sintomas_destaque.append('Dor de Cabeça')
+            if reg.get('mialgia') == '1' or reg.get('mialgia') == 1.0: sintomas_destaque.append('Dor no Corpo')
+            
+            sint_txt = ", ".join(sintomas_destaque) if sintomas_destaque else "Sem sintomas graves relatados"
+            mensagem += f"  ↳ Sintomas: {_escape_md(sint_txt)}\n\n"
+
+    teclado_final = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏠 Voltar ao Menu", callback_data="voltar_menu")]
+    ])
+
+    await query.edit_message_text(mensagem, parse_mode="MarkdownV2", reply_markup=teclado_final)
+    return ConversationHandler.END
+
 
 
 # ==========================================
@@ -676,6 +772,7 @@ def create_start_conversation_handler() -> ConversationHandler:
             CallbackQueryHandler(callback_trocar_paciente, pattern="^trocar_paciente$"),
             CallbackQueryHandler(callback_atualizar_dados, pattern="^atualizar_dados$"),
             CallbackQueryHandler(callback_acompanhamento, pattern="^acompanhamento$"),
+            CallbackQueryHandler(callback_ver_historico, pattern="^ver_historico$"),
             CallbackQueryHandler(callback_baixar_cartilha, pattern="^baixar_cartilha$"),
             CallbackQueryHandler(callback_voltar_menu, pattern="^voltar_menu$"),
         ],
@@ -704,6 +801,7 @@ def create_start_conversation_handler() -> ConversationHandler:
             AGUARDANDO_HIPERTENSA:[CallbackQueryHandler(callback_hipertensa,pattern="^hiper_")],
             AGUARDANDO_ACIDO_PEPT:[CallbackQueryHandler(callback_acido_pept,pattern="^acido_")],
             AGUARDANDO_AUTO_IMUNE:[CallbackQueryHandler(callback_auto_imune,pattern="^auto_")],
+            AGUARDANDO_TELEFONE:  [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_telefone)],
 
             TRIAGEM_PERGUNTA: [
                 CallbackQueryHandler(callback_triagem_resposta, pattern="^triagem_"),

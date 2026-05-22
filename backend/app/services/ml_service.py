@@ -83,8 +83,22 @@ def predict_classification(features: dict) -> str:
         resultado = _model.predict(vetor)
         classificacao = str(resultado[0])
         
-        # CORREÇÃO: Usa o dicionário 'features' no log em vez do 'vetor[0]' do Pandas
-        logger.info(f"🤖 [ML] Predição real do modelo: {classificacao} | Input: {features}")
+        # --- TRAVA DE SEGURANÇA (Viés do SINAN) ---
+        # Pacientes no SINAN em estado D (choque) muitas vezes ficam com sintomas menores marcados como 'Não' (2.0)
+        # fazendo a IA aprender a falsa regra: 'Comorbidade + Sem Sintomas = Choque (D)'.
+        # Se o paciente relatou pouquíssimos sintomas de dengue (< 3), a classificação C/D é um Falso Positivo estatístico.
+        sintomas = ["febre", "mialgia", "cefaleia", "exantema", "vomito", "nausea", "dor_costas", "conjuntvit", "artrite", "artralgia", "dor_retro"]
+        comorbidades = ["diabetes", "hematolog", "hepatopat", "renal", "hipertensa", "acido_pept", "auto_imune"]
+        
+        qtde_sintomas = sum(1 for k in sintomas if features.get(k) == 1.0)
+        tem_comorbidade = any(features.get(k) == 1.0 for k in comorbidades)
+        
+        if classificacao in ["C", "D"] and qtde_sintomas < 3:
+            classificacao_antiga = classificacao
+            classificacao = "B" if tem_comorbidade else "A"
+            logger.warning(f"🔒 [Segurança] Intervenção na IA! Predição original {classificacao_antiga} rebaixada para {classificacao} (Sintomas={qtde_sintomas}, Comorb={tem_comorbidade}).")
+
+        logger.info(f"🤖 [ML] Predição final do modelo: {classificacao} | Input: {features}")
         
         return classificacao
 

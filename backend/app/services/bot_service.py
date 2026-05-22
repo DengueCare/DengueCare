@@ -21,6 +21,10 @@ PERGUNTAS_TRIAGEM: List[Tuple[str, str, str]] = [
     ("artralgia", "🦴 Você está sentindo *dor nas articulações* \\(nas juntas\\)?", "artralgia"),
     ("artrite", "🦵 Você notou *inchaço ou inflamação* nas articulações \\(artrite\\)?", "artrite"),
     ("dor_retro", "👀 Você está sentindo *dor atrás dos olhos*?", "dor_retro"),
+    # --- Sinais de Alarme (Protocolo MS) ---
+    ("dor_abd", "😣 Você está sentindo *dor abdominal intensa e contínua*?", "dor_abd"),
+    ("sangram", "🩸 Você notou algum tipo de *sangramento* \\(ex: nariz, gengiva, manchas roxas na pele\\)?", "sangram"),
+    ("letargia", "😴 Você está se sentindo excessivamente *sonolento, confuso ou irritado* \\(letargia/irritabilidade\\)?", "letargia"),
 ]
 
 # Mensagens dinâmicas ajustadas rigorosamente para o MarkdownV2 do Telegram

@@ -27,6 +27,9 @@ async def salvar_atendimento(
     artrite: str,
     artralgia: str,
     dor_retro: str,
+    dor_abd: str,
+    sangram: str,
+    letargia: str,
     grupo_risco: str
 ) -> dict:
     """
@@ -41,12 +44,14 @@ async def salvar_atendimento(
                     id, dt_inicio, dt_fim, 
                     febre, mialgia, cefaleia, exantema, vomito, nausea, 
                     dor_costas, conjuntvit, artrite, artralgia, dor_retro, 
+                    dor_abd, sangram, letargia,
                     grupo_risco
                 ) 
                 VALUES (
                     :paciente_id, :inicio, :fim, 
                     :febre, :mialgia, :cefaleia, :exantema, :vomito, :nausea, 
                     :dor_costas, :conjuntvit, :artrite, :artralgia, :dor_retro, 
+                    :dor_abd, :sangram, :letargia,
                     :risco
                 ) 
                 RETURNING nr_atendimento, id, grupo_risco, dt_fim
@@ -67,6 +72,9 @@ async def salvar_atendimento(
                 "artrite": artrite,
                 "artralgia": artralgia,
                 "dor_retro": dor_retro,
+                "dor_abd": dor_abd,
+                "sangram": sangram,
+                "letargia": letargia,
                 "risco": grupo_risco
             }
         )
@@ -109,3 +117,28 @@ async def buscar_ultimo_atendimento(db: AsyncSession, paciente_id: int) -> dict 
     except Exception as e:
         logger.error(f"❌ Erro ao buscar último atendimento do paciente '{paciente_id}': {e}")
         return None
+
+
+async def buscar_historico_atendimentos(db: AsyncSession, paciente_id: int, limite: int = 5) -> list[dict]:
+    """
+    Busca os últimos atendimentos (triagens) de um paciente para exibir no histórico.
+    """
+    try:
+        result = await db.execute(
+            text(
+                """
+                SELECT nr_atendimento, dt_fim, grupo_risco,
+                       febre, cefaleia, mialgia
+                FROM atendimento_paciente 
+                WHERE id = :paciente_id 
+                ORDER BY dt_fim DESC 
+                LIMIT :lim
+                """
+            ),
+            {"paciente_id": paciente_id, "lim": limite}
+        )
+        rows = result.fetchall()
+        return [dict(row._mapping) for row in rows]
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar histórico de atendimentos do paciente '{paciente_id}': {e}")
+        return []

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.api.routes import chat, patient, dashboard
+from app.api.routes import chat, patient, dashboard, auth
 from app.db.database import engine # Importamos o motor diretamente
 
 # ==========================================
@@ -53,3 +53,4 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Web Chat Interface"])
 app.include_router(patient.router, prefix="/api/v1/patients", tags=["Medical Interface"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Triage Dashboard"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Autenticação de Profissionais"])

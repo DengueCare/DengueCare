@@ -55,7 +55,8 @@ async def criar_paciente(
     renal: float,
     hipertensa: float,
     acido_pept: float,
-    auto_imune: float
+    auto_imune: float,
+    telefone: str = None
 ) -> dict:
     try:
         # 1. Converte a data para objeto real (já fizemos isso, mantém)
@@ -67,14 +68,14 @@ async def criar_paciente(
                 INSERT INTO paciente (
                     nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo,
                     diabetes, hematolog, hepatopat, renal,
-                    hipertensa, acido_pept, auto_imune
+                    hipertensa, acido_pept, auto_imune, telefone
                 ) 
                 VALUES (
                     :nm, :nr, :dt_nasc, :sexo,
                     :diab, :hemato, :hepato, :renal,
-                    :hiper, :acido, :auto
+                    :hiper, :acido, :auto, :tel
                 ) 
-                RETURNING id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo
+                RETURNING id, nm_usuario, nr_carteira, "DT_NASCIMENTO", cs_sexo, telefone
                 """
             ),
             {
@@ -88,7 +89,8 @@ async def criar_paciente(
                 "renal": str(int(renal)),
                 "hiper": str(int(hipertensa)),
                 "acido": str(int(acido_pept)),
-                "auto": str(int(auto_imune))
+                "auto": str(int(auto_imune)),
+                "tel": telefone
             }
         )
         await db.commit()

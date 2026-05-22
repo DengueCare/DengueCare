@@ -19,23 +19,27 @@ export class PatientAPIRepository {
             }
 
             const data = await response.json(); 
-            
             return data.data;
         } catch (error) {
             console.error('Erro ao buscar pacientes na API:', error);
-            // Retorna vazio em caso de falha de conexão (evita quebrar o frontend)
             throw error;
         }
     }
 
     async getPatientById(id) {
         try {
-            // Placeholder para a chamada real da API
-            // const response = await fetch(`${this.baseUrl}/patients/${id}`);
-            // if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            // return await response.json();
+            const response = await fetch(`${this.baseUrl}/patients/${id}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
             
-            return null;
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
         } catch (error) {
             console.error(`Erro ao buscar paciente ${id} na API:`, error);
             return null;

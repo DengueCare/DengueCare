@@ -1,36 +1,178 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.api.dependencies import get_db
+from app.services.atendimento_service import buscar_historico_atendimentos
+from app.services.bot_service import detectar_evolucao
+from datetime import date, datetime
 
 router = APIRouter()
 
 @router.get("/")
 async def get_all_patients(db: AsyncSession = Depends(get_db)):
     """
-    Busca todos os pacientes/usuários cadastrados no banco de dados.
-    Utiliza conexão assíncrona do pool do SQLAlchemy.
+    Busca todos os pacientes e anexa os dados de risco baseados no histórico.
     """
     try:
-        # Executa a query de forma não-bloqueante
-        # Se a tabela no Supabase estiver como 'usuario', troque a palavra abaixo.
         result = await db.execute(text("SELECT * FROM paciente"))
-        
-        # Extrai todas as linhas retornadas
         pacientes = result.fetchall()
         
-        # Mapeia os resultados para uma lista de dicionários compatível com JSON
-        formatted_data = [dict(row._mapping) for row in pacientes]
-        
+        formatted_data = []
+        for row in pacientes:
+            paciente = dict(row._mapping)
+            historico = await buscar_historico_atendimentos(db, paciente["id"], limite=2)
+            
+            piorou = False
+            risco = "Desconhecido"
+            if len(historico) >= 2:
+                risco_atual = historico[0].get("grupo_risco", "")
+                risco_anterior = historico[1].get("grupo_risco", "")
+                piorou = detectar_evolucao(risco_anterior, risco_atual)
+                risco = risco_atual
+            elif len(historico) == 1:
+                risco = historico[0].get("grupo_risco", "")
+            
+            # Formatar para o frontend
+            badge = "badge-green"
+            if risco == "B": badge = "badge-yellow"
+            elif risco == "C": badge = "badge-orange"
+            elif risco == "D": badge = "badge-red"
+            
+            dias_doenca = 0
+            if len(historico) > 0 and historico[-1].get("dt_fim"):
+                dt_primeiro = historico[-1]["dt_fim"]
+                if dt_primeiro:
+                    delta = datetime.now() - dt_primeiro
+                    dias_doenca = max(0, delta.days)
+            
+            dt_ultima_triagem = None
+            if len(historico) > 0 and historico[0].get("dt_fim"):
+                dt_ultima_triagem = historico[0]["dt_fim"].isoformat()
+
+            formatted_data.append({
+                "id": paciente["id"],
+                "nome": paciente["nm_usuario"],
+                "iniciais": paciente["nm_usuario"][:2].upper() if paciente["nm_usuario"] else "--",
+                "riscoTexto": f"Grupo {risco}" if risco != "Desconhecido" else "Risco Indefinido",
+                "riscoBadge": badge,
+                "dias": dias_doenca,
+                "piorou": piorou,
+                "riscoPuro": risco,
+                "dt_ultima_triagem": dt_ultima_triagem,
+                "telefone": paciente.get("telefone", None)
+            })
+            
         return {
             "status": "success",
             "count": len(formatted_data),
             "data": formatted_data
         }
-        
     except Exception as e:
-        # Captura e formata erros de sintaxe SQL ou falha de tabela ausente
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Erro ao consultar o banco de dados: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erro ao consultar pacientes: {str(e)}")
+
+@router.get("/{patient_id}")
+async def get_patient_by_id(patient_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Retorna os detalhes completos do paciente, incluindo histórico de triagens e dados para o gráfico.
+    """
+    try:
+        # Busca paciente
+        res_pac = await db.execute(text("SELECT * FROM paciente WHERE id = :id"), {"id": patient_id})
+        row = res_pac.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Paciente não encontrado")
+            
+        paciente = dict(row._mapping)
+        
+        # Busca historico
+        historico_db = await buscar_historico_atendimentos(db, patient_id, limite=20)
+        
+        # Formatando historico
+        historico_formatado = []
+        dados_grafico = []
+        mapa_risco_num = {"A": 25, "B": 50, "C": 75, "D": 100}
+        
+        # O histórico do BD vem DESC (mais novo primeiro). O grafico precisa ASC (mais antigo primeiro).
+        historico_asc = list(reversed(historico_db))
+        
+        for idx, h in enumerate(historico_asc):
+            grupo = h.get("grupo_risco", "A")
+            dados_grafico.append(mapa_risco_num.get(grupo, 0))
+            
+            sintomas = []
+            if h.get("febre") in ["1", 1, 1.0]: sintomas.append({"n": "Febre", "c": "badge-red"})
+            if h.get("cefaleia") in ["1", 1, 1.0]: sintomas.append({"n": "Dor de Cabeça", "c": "badge-yellow"})
+            if h.get("mialgia") in ["1", 1, 1.0]: sintomas.append({"n": "Dor Muscular", "c": "badge-orange"})
+            if h.get("exantema") in ["1", 1, 1.0]: sintomas.append({"n": "Manchas", "c": "badge-red"})
+            if h.get("vomito") in ["1", 1, 1.0]: sintomas.append({"n": "Vômito", "c": "badge-orange"})
+            if h.get("dor_costas") in ["1", 1, 1.0]: sintomas.append({"n": "Dor Costas", "c": "badge-yellow"})
+            
+            dt = h.get("dt_fim")
+            dia_texto = dt.strftime("%d/%m/%Y %H:%M") if dt else f"Triagem {idx+1}"
+            
+            historico_formatado.append({
+                "dia": dia_texto,
+                "grupo": f"Grupo {grupo}",
+                "sintomas": sintomas
+            })
+            
+        # Reverte para mostrar mais recente no topo do historico visual
+        historico_formatado.reverse()
+        
+        # Calculando Idade
+        idade = "--"
+        if paciente.get("DT_NASCIMENTO"):
+            dt_nasc = paciente["DT_NASCIMENTO"]
+            if isinstance(dt_nasc, str) and len(dt_nasc) >= 10:
+                try:
+                    dt_nasc = datetime.strptime(dt_nasc[:10], "%Y-%m-%d").date()
+                except:
+                    pass
+            if isinstance(dt_nasc, date):
+                hoje = date.today()
+                idade = hoje.year - dt_nasc.year - ((hoje.month, hoje.day) < (dt_nasc.month, dt_nasc.day))
+        
+        comorbidades = []
+        if paciente.get("diabetes") in [1, 1.0, "1"]: comorbidades.append("Diabetes")
+        if paciente.get("hipertensa") in [1, 1.0, "1"]: comorbidades.append("Hipertensão")
+        if paciente.get("renal") in [1, 1.0, "1"]: comorbidades.append("Doença Renal")
+        if paciente.get("hematolog") in [1, 1.0, "1"]: comorbidades.append("Hematológica")
+        
+        # Trend
+        trend = "Estável"
+        trendColor = "#666"
+        scoreAtual = dados_grafico[-1] if dados_grafico else 0
+        if len(dados_grafico) >= 2:
+            diff = dados_grafico[-1] - dados_grafico[-2]
+            if diff > 0:
+                trend = f"▲ +{diff}"
+                trendColor = "#d93025"
+            elif diff < 0:
+                trend = f"▼ {diff}"
+                trendColor = "#1e8e3e"
+                
+        # Analise de piora global do historico mais recente
+        piorou = False
+        if len(historico_db) >= 2:
+            piorou = detectar_evolucao(historico_db[1].get("grupo_risco", ""), historico_db[0].get("grupo_risco", ""))
+            
+        return {
+            "id": paciente["id"],
+            "nome": paciente["nm_usuario"],
+            "iniciais": paciente["nm_usuario"][:2].upper() if paciente["nm_usuario"] else "--",
+            "idade": f"{idade}",
+            "tel": paciente.get("telefone", ""),
+            "status": "Monitoramento Ativo" if not piorou else "Atenção Requerida",
+            "score": scoreAtual,
+            "trend": trend,
+            "trendColor": trendColor,
+            "grupo": f"Grupo {historico_db[0].get('grupo_risco', 'A')}" if historico_db else "Risco Indefinido",
+            "comorb": comorbidades if comorbidades else ["Nenhuma declarada"],
+            "grafico": dados_grafico,
+            "historico": historico_formatado,
+            "piorou": piorou
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
