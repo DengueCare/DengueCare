@@ -1,7 +1,8 @@
 import { Patient } from '../../domain/entities/Patient.js';
+import { API_BASE_URL } from '../../config.js';
 
 export class PatientAPIRepository {
-    constructor(baseUrl = 'http://localhost:8000/api/v1') {
+    constructor(baseUrl = API_BASE_URL) {
         this.baseUrl = baseUrl;
     }
 

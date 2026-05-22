@@ -1,5 +1,6 @@
 import { PatientAPIRepository } from '../../../infrastructure/repositories/PatientAPIRepository.js';
 import { GetPatientByIdUseCase, GetPatientsUseCase } from '../../../application/usecases/PatientUseCases.js';
+import { API_BASE_URL } from '../../../config.js';
 
 export class DashboardController {
     constructor() {
@@ -204,7 +205,7 @@ export class DashboardController {
         }
         
         try {
-            const response = await fetch('http://localhost:8000/api/v1/auth/login', {
+            const response = await fetch(`${API_BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ carteira: id, senha: senha })
@@ -265,7 +266,7 @@ export class DashboardController {
         }
         
         try {
-            const response = await fetch('http://localhost:8000/api/v1/auth/register', {
+            const response = await fetch(`${API_BASE_URL}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ nome: nome, carteira: id, senha: senha })

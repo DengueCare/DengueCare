@@ -1,5 +1,6 @@
 import { ChatLocalStorageRepository } from '../../../infrastructure/repositories/ChatLocalStorageRepository.js';
 import * as ChatUseCases from '../../../application/usecases/ChatUseCases.js';
+import { API_BASE_URL } from '../../../config.js';
 
 export class ChatController {
     constructor() {
@@ -144,7 +145,7 @@ export class ChatController {
 
         // 2. Integração com o Backend: Chamada HTTP para a API Preditiva
         try {
-            const response = await fetch('http://localhost:8000/api/v1/chat/send', {
+            const response = await fetch(`${API_BASE_URL}/chat/send`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
