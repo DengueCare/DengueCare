@@ -27,6 +27,7 @@ from app.services.bot_service import (
     detectar_evolucao,
 )
 from app.services.ml_service import predict_classification
+from app.services.ubs_service import buscar_ubs_por_cep, formatar_mensagem_ubs
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,10 @@ AGUARDANDO_HIPERTENSA = 9
 AGUARDANDO_ACIDO_PEPT = 10
 AGUARDANDO_AUTO_IMUNE = 11
 AGUARDANDO_TELEFONE = 12
+AGUARDANDO_CEP_UBS = 13
 
 # Estados do fluxo de triagem
-TRIAGEM_PERGUNTA = 13
+TRIAGEM_PERGUNTA = 14
 
 
 # ==========================================
@@ -626,6 +628,56 @@ async def callback_baixar_cartilha(update: Update, context: ContextTypes.DEFAULT
 
     return ConversationHandler.END
 
+# ==========================================
+# FLUXO: Encontrar UBS Próxima
+# ==========================================
+async def callback_iniciar_busca_ubs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    await query.edit_message_text(
+        "🏥 *Busca de Unidades de Saúde*\n\n"
+        "Para encontrar as unidades mais próximas, por favor, digite o seu *CEP* \\(apenas números ou com hífen\\):\n"
+        "Exemplo: `13500-000`",
+        parse_mode="MarkdownV2"
+    )
+    return AGUARDANDO_CEP_UBS
+
+async def receber_cep_ubs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    cep = update.message.text.strip()
+    
+    # Feedback visual enquanto as 3 APIs são consultadas
+    loading_msg = await update.message.reply_text(
+        "⏳ *Buscando UBS próximas\\.\\.\\.* Isso pode levar alguns segundos\\.", 
+        parse_mode="MarkdownV2"
+    )
+
+    # Executa o pipeline do ubs_service
+    ubs_list, endereco = await buscar_ubs_por_cep(cep)
+
+    if not endereco:
+        await loading_msg.edit_text(
+            "⚠️ *CEP inválido ou não encontrado*\\. Por favor, digite um CEP válido:",
+            parse_mode="MarkdownV2"
+        )
+        return AGUARDANDO_CEP_UBS
+
+    # Formata a resposta
+    mensagem_formatada = formatar_mensagem_ubs(ubs_list, endereco)
+    
+    # Botão para voltar
+    keyboard = [[InlineKeyboardButton("🏠 Voltar ao Menu", callback_data="voltar_menu")]]
+    
+    # Entrega o resultado e desativa a preview de links (para não poluir o chat com os mapas)
+    await loading_msg.edit_text(
+        mensagem_formatada, 
+        parse_mode="MarkdownV2", 
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        disable_web_page_preview=True 
+    )
+
+    return ConversationHandler.END
+
 
 # ==========================================
 # FUNÇÃO AUXILIAR: Exibe o menu principal
@@ -657,6 +709,7 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
         [InlineKeyboardButton("📋 Registrar Triagem Diária", callback_data="acompanhamento")],
         [InlineKeyboardButton("📅 Ver Histórico de Atendimentos", callback_data="ver_historico")],
         [InlineKeyboardButton("📚 Guia Clínico - Ministério da Saúde", callback_data="baixar_cartilha")],
+        [InlineKeyboardButton("🏥 Encontrar UBS Próxima", callback_data="buscar_ubs")],
         [InlineKeyboardButton("⚙️ Atualizar Perfil de Saúde", callback_data="atualizar_dados")],
         [InlineKeyboardButton("🔄 Trocar Paciente", callback_data="trocar_paciente")],
     ]
@@ -774,6 +827,7 @@ def create_start_conversation_handler() -> ConversationHandler:
             CallbackQueryHandler(callback_acompanhamento, pattern="^acompanhamento$"),
             CallbackQueryHandler(callback_ver_historico, pattern="^ver_historico$"),
             CallbackQueryHandler(callback_baixar_cartilha, pattern="^baixar_cartilha$"),
+            CallbackQueryHandler(callback_iniciar_busca_ubs, pattern="^buscar_ubs$"),
             CallbackQueryHandler(callback_voltar_menu, pattern="^voltar_menu$"),
         ],
         states={
@@ -802,6 +856,10 @@ def create_start_conversation_handler() -> ConversationHandler:
             AGUARDANDO_ACIDO_PEPT:[CallbackQueryHandler(callback_acido_pept,pattern="^acido_")],
             AGUARDANDO_AUTO_IMUNE:[CallbackQueryHandler(callback_auto_imune,pattern="^auto_")],
             AGUARDANDO_TELEFONE:  [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_telefone)],
+
+            AGUARDANDO_CEP_UBS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receber_cep_ubs)
+            ],
 
             TRIAGEM_PERGUNTA: [
                 CallbackQueryHandler(callback_triagem_resposta, pattern="^triagem_"),
