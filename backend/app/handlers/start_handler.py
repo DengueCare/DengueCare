@@ -5,7 +5,7 @@ Totalmente integrado ao modelo de Machine Learning e persistência assíncrona.
 """
 
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
@@ -30,6 +30,8 @@ from app.services.ml_service import predict_classification
 from app.services.ubs_service import buscar_ubs_por_cep, formatar_mensagem_ubs
 
 logger = logging.getLogger(__name__)
+
+TZ_BRASILIA = timezone(timedelta(hours=-3))
 
 # ==========================================
 # ESTADOS DA MÁQUINA DE CONVERSA
@@ -153,7 +155,7 @@ async def receber_dt_nascimento(update: Update, context: ContextTypes.DEFAULT_TY
     texto_data = update.message.text.strip()
     try:
         data_nasc = datetime.strptime(texto_data, "%d/%m/%Y")
-        hoje = datetime.now()
+        hoje = datetime.now(TZ_BRASILIA)
         idade = hoje.year - data_nasc.year - ((hoje.month, hoje.day) < (data_nasc.month, data_nasc.day))
         context.user_data['DT_NASCIMENTO'] = data_nasc.strftime("%Y-%m-%d")
         context.user_data['idade_anos'] = float(idade)
@@ -345,7 +347,7 @@ async def callback_acompanhamento(update: Update, context: ContextTypes.DEFAULT_
         return ConversationHandler.END
 
     context.user_data['triagem_index'] = 0
-    context.user_data['triagem_inicio'] = datetime.now()
+    context.user_data['triagem_inicio'] = datetime.now(TZ_BRASILIA)
     context.user_data['triagem_respostas'] = {}
 
     await query.edit_message_text(
@@ -426,11 +428,12 @@ async def callback_triagem_resposta(update: Update, context: ContextTypes.DEFAUL
 async def _finalizar_triagem(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     paciente = context.user_data.get("paciente")
     respostas = context.user_data.get('triagem_respostas', {})
-    dt_inicio = context.user_data.get('triagem_inicio', datetime.now())
-    dt_fim = datetime.now()
+
+    dt_inicio = context.user_data.get('triagem_inicio', datetime.now(TZ_BRASILIA))
+    dt_fim = datetime.now(TZ_BRASILIA)
 
     if isinstance(paciente.get('DT_NASCIMENTO'), date):
-        hoje = date.today()
+        hoje = datetime.now(TZ_BRASILIA).date()
         dt_nasc = paciente.get('DT_NASCIMENTO')
         idade_anos = float(hoje.year - dt_nasc.year - ((hoje.month, hoje.day) < (dt_nasc.month, dt_nasc.day)))
     else:
@@ -690,12 +693,12 @@ async def _exibir_menu_paciente(update: Update, context: ContextTypes.DEFAULT_TY
     if dt_nasc:
         try:
             if isinstance(dt_nasc, date):
-                hoje = date.today()
+                hoje = datetime.now(TZ_BRASILIA).date()
                 idade = hoje.year - dt_nasc.year - ((hoje.month, hoje.day) < (dt_nasc.month, dt_nasc.day))
                 idade_texto = f"{idade} anos"
             elif isinstance(dt_nasc, str) and len(dt_nasc) >= 10:
                 dt_objeto = datetime.strptime(dt_nasc[:10], "%Y-%m-%d").date()
-                hoje = date.today()
+                hoje = datetime.now(TZ_BRASILIA).date()
                 idade = hoje.year - dt_objeto.year - ((hoje.month, hoje.day) < (dt_objeto.month, dt_objeto.day))
                 idade_texto = f"{idade} anos"
         except Exception as e:
