@@ -67,6 +67,8 @@
     </style>
 </head>
 <body>
+    <button class="hamburger-btn" id="hamburger-btn" onclick="window.toggleSidebar()" aria-label="Abrir menu">☰</button>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="window.closeSidebar()"></div>
 
     <!-- TELA DE LOGIN / CADASTRO -->
     <div id="login-screen" class="login-overlay">
@@ -577,5 +579,51 @@
 
     <!-- Módulo Clean Architecture referenciando seu Controller -->
     <script type="module" src="../controllers/DashboardController.js?v=3"></script>
+
+    <script>
+  // Abre/fecha o drawer da sidebar no mobile
+  window.toggleSidebar = function() {
+    const sidebar  = document.querySelector('.sidebar');
+    const overlay  = document.getElementById('sidebar-overlay');
+    const btn      = document.getElementById('hamburger-btn');
+    const isOpen   = sidebar.classList.contains('open');
+ 
+    if (isOpen) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('active');
+      btn.textContent = '☰';
+    } else {
+      sidebar.classList.add('open');
+      overlay.classList.add('active');
+      btn.textContent = '✕';
+    }
+  };
+ 
+  window.closeSidebar = function() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const btn     = document.getElementById('hamburger-btn');
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+    btn.textContent = '☰';
+  };
+ 
+  // Fecha o drawer ao navegar entre páginas no mobile
+  const navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        window.closeSidebar();
+      }
+    });
+  });
+ 
+  // Fecha o drawer se a janela for redimensionada para desktop
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+      window.closeSidebar();
+    }
+  });
+</script>
 </body>
 </html>
