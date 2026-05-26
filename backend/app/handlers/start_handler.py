@@ -347,7 +347,7 @@ async def callback_acompanhamento(update: Update, context: ContextTypes.DEFAULT_
         return ConversationHandler.END
 
     context.user_data['triagem_index'] = 0
-    context.user_data['triagem_inicio'] = datetime.now(TZ_BRASILIA)
+    context.user_data['triagem_inicio'] = datetime.now(TZ_BRASILIA).replace(tzinfo=None)
     context.user_data['triagem_respostas'] = {}
 
     await query.edit_message_text(
@@ -429,8 +429,11 @@ async def _finalizar_triagem(update: Update, context: ContextTypes.DEFAULT_TYPE)
     paciente = context.user_data.get("paciente")
     respostas = context.user_data.get('triagem_respostas', {})
 
-    dt_inicio = context.user_data.get('triagem_inicio', datetime.now(TZ_BRASILIA))
+    dt_inicio_raw = context.user_data.get('triagem_inicio', datetime.now(TZ_BRASILIA))
     dt_fim = datetime.now(TZ_BRASILIA)
+
+    dt_inicio = dt_inicio_raw.replace(tzinfo=None)
+    dt_fim = dt_fim.replace(tzinfo=None)
 
     if isinstance(paciente.get('DT_NASCIMENTO'), date):
         hoje = datetime.now(TZ_BRASILIA).date()
