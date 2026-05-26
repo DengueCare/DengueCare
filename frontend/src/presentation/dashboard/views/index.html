@@ -67,6 +67,27 @@
     </style>
 </head>
 <body>
+    <script>
+        // Diagnostic error logging to help identify why the controller fails to load
+        window.addEventListener('error', function(e) {
+            console.error("DengueCare script error detected:", e);
+            const errorEl = document.getElementById('login-error');
+            if (errorEl) {
+                const file = e.filename ? e.filename.split('/').pop() : 'script';
+                errorEl.innerHTML = `<strong>Erro de Carregamento:</strong> ${e.message}<br><span style="font-size:11px; opacity:0.8;">Arquivo: ${file} (Linha ${e.lineno})</span>`;
+                errorEl.style.display = 'block';
+            }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error("DengueCare promise rejection detected:", e);
+            const errorEl = document.getElementById('login-error');
+            if (errorEl) {
+                errorEl.innerHTML = `<strong>Erro Interno (Promessa Rejeitada):</strong> ${e.reason}`;
+                errorEl.style.display = 'block';
+            }
+        });
+    </script>
     <button class="hamburger-btn" id="hamburger-btn" onclick="window.toggleSidebar()" aria-label="Abrir menu">☰</button>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="window.closeSidebar()"></div>
 
