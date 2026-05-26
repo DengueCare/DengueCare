@@ -215,28 +215,30 @@ async def reativar_profissional(db: AsyncSession, carteira: str) -> bool:
     await db.commit()
     return result.fetchone() is not None
 
-async def toggle_admin_profissional(db: AsyncSession, carteira: str) -> dict | None:
+async def alterar_status_admin(db: AsyncSession, carteira: str, is_admin: bool) -> bool:
     """
-    Alterna a permissão de administrador (is_admin) de um profissional.
+    Altera a permissão de administrador de um profissional médico no banco de dados.
     """
-    # Primeiro busca o estado atual
-    result = await db.execute(
-        text("SELECT is_admin FROM profissional WHERE carteira = :carteira"),
-        {"carteira": carteira}
-    )
-    row = result.fetchone()
-    if not row:
-        return None
-    
-    novo_is_admin = not bool(row[0])
-    
-    update_result = await db.execute(
-        text("UPDATE profissional SET is_admin = :novo_is_admin WHERE carteira = :carteira RETURNING id, nome, carteira, ubs, status, is_admin"),
-        {"novo_is_admin": novo_is_admin, "carteira": carteira}
-    )
-    await db.commit()
-    updated_row = update_result.fetchone()
-    return dict(updated_row._mapping) if updated_row else None
+    try:
+        # Altere "is_admin" para o nome exato da sua coluna no Supabase, caso seja diferente
+        result = await db.execute(
+            text("""
+                UPDATE profissional 
+                SET is_admin = :admin 
+                WHERE nr_carteira = :carteira
+            """),
+            {"admin": is_admin, "carteira": carteira}
+        )
+        await db.commit()
+        
+        # Verifica se alguma linha foi afetada (se o profissional realmente existe)
+        if result.rowcount > 0:
+            return True
+        return False
+        
+    except Exception as e:
+        await db.rollback()
+        raise e
 
 async def obter_pergunta_seguranca(db: AsyncSession, carteira: str) -> str | None:
     """
