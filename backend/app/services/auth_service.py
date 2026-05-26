@@ -64,7 +64,7 @@ async def registrar_profissional(db: AsyncSession, nome: str, carteira: str, sen
         text('''
             INSERT INTO profissional (nome, carteira, senha_hash, salt, status)
             VALUES (:nome, :carteira, :senha_hash, :salt, 'ativo')
-            RETURNING id, nome, carteira, ubs, status, dt_criacao
+            RETURNING id, nome, carteira, ubs, status, dt_criacao, is_admin
         '''),
         {
             "nome": nome,
@@ -83,7 +83,7 @@ async def autenticar_profissional(db: AsyncSession, carteira: str, senha: str) -
     Retorna os dados do profissional se sucesso, ou None se falhar.
     """
     result = await db.execute(
-        text("SELECT id, nome, carteira, senha_hash, salt, ubs, status FROM profissional WHERE carteira = :carteira"),
+        text("SELECT id, nome, carteira, senha_hash, salt, ubs, status, is_admin FROM profissional WHERE carteira = :carteira"),
         {"carteira": carteira}
     )
     row = result.fetchone()
@@ -139,7 +139,7 @@ async def atualizar_profissional(db: AsyncSession, carteira: str, novo_nome: str
     if not updates:
         return None
 
-    query += ", ".join(updates) + " WHERE carteira = :carteira RETURNING id, nome, carteira, ubs, status, dt_criacao"
+    query += ", ".join(updates) + " WHERE carteira = :carteira RETURNING id, nome, carteira, ubs, status, dt_criacao, is_admin"
     
     update_result = await db.execute(text(query), params)
     await db.commit()
@@ -157,3 +157,47 @@ async def inativar_profissional(db: AsyncSession, carteira: str) -> bool:
     )
     await db.commit()
     return result.fetchone() is not None
+
+async def listar_todos_profissionais(db: AsyncSession) -> list[dict]:
+    """
+    Retorna todos os profissionais de saúde cadastrados.
+    """
+    result = await db.execute(
+        text("SELECT id, nome, carteira, ubs, status, is_admin, dt_criacao FROM profissional ORDER BY nome ASC")
+    )
+    rows = result.fetchall()
+    return [dict(row._mapping) for row in rows]
+
+async def reativar_profissional(db: AsyncSession, carteira: str) -> bool:
+    """
+    Reativa a conta de um profissional da saúde.
+    """
+    result = await db.execute(
+        text("UPDATE profissional SET status = 'ativo' WHERE carteira = :carteira RETURNING id"),
+        {"carteira": carteira}
+    )
+    await db.commit()
+    return result.fetchone() is not None
+
+async def toggle_admin_profissional(db: AsyncSession, carteira: str) -> dict | None:
+    """
+    Alterna a permissão de administrador (is_admin) de um profissional.
+    """
+    # Primeiro busca o estado atual
+    result = await db.execute(
+        text("SELECT is_admin FROM profissional WHERE carteira = :carteira"),
+        {"carteira": carteira}
+    )
+    row = result.fetchone()
+    if not row:
+        return None
+    
+    novo_is_admin = not bool(row[0])
+    
+    update_result = await db.execute(
+        text("UPDATE profissional SET is_admin = :novo_is_admin WHERE carteira = :carteira RETURNING id, nome, carteira, ubs, status, is_admin"),
+        {"novo_is_admin": novo_is_admin, "carteira": carteira}
+    )
+    await db.commit()
+    updated_row = update_result.fetchone()
+    return dict(updated_row._mapping) if updated_row else None

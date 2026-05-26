@@ -4,6 +4,7 @@ from sqlalchemy import text
 from app.api.dependencies import get_db
 from app.services.atendimento_service import buscar_historico_atendimentos
 from app.services.bot_service import detectar_evolucao
+from app.services.patient_service import listar_pacientes_inativos, reativar_paciente
 from datetime import date, datetime
 from pydantic import BaseModel
 from typing import Optional
@@ -104,6 +105,18 @@ async def get_all_patients(db: AsyncSession = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao consultar pacientes: {str(e)}")
+
+@router.get("/inactive")
+async def get_inactive_patients(db: AsyncSession = Depends(get_db)):
+    try:
+        patients = await listar_pacientes_inativos(db)
+        return {
+            "status": "success",
+            "count": len(patients),
+            "data": patients
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar pacientes inativos: {str(e)}")
 
 @router.get("/{patient_id}")
 async def get_patient_by_id(patient_id: int, db: AsyncSession = Depends(get_db)):
@@ -305,6 +318,18 @@ async def inactivate_patient(patient_id: int, req: PatientInactivateRequest, db:
             raise HTTPException(status_code=404, detail="Paciente não encontrado")
             
         return {"success": True, "message": "Paciente inativado com sucesso"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/{patient_id}/reactivate")
+async def reactivate_patient_route(patient_id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        success = await reativar_paciente(db, patient_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Paciente não encontrado ou erro na reativação")
+        return {"success": True, "message": "Paciente reativado com sucesso"}
     except HTTPException:
         raise
     except Exception as e:

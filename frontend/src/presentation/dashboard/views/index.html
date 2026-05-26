@@ -154,6 +154,9 @@
                     <li class="nav-item" onclick="window.navegar('configuracoes', this)">
                         <span style="font-size: 18px;">⚙️</span> Configurações
                     </li>
+                    <li class="nav-item" id="nav-admin" style="display: none;" onclick="window.navegar('administracao', this)">
+                        <span style="font-size: 18px;">🛡️</span> Administração
+                    </li>
                     <li class="nav-item" style="color: #d93025; margin-top: 10px;" onclick="window.fazerLogout()">
                         <span style="font-size: 18px;">🚪</span> Sair
                     </li>
@@ -460,6 +463,69 @@
                         <button class="btn-primary" style="background-color: transparent; color: #d93025; border: 1px solid #d93025;" onclick="window.inativarCadastroMedico()">Encerrar/Inativar Cadastro</button>
                     </div>
                     <p id="conf-msg" style="margin-top: 15px; font-size: 14px; text-align: center; display: none;"></p>
+                </div>
+            </div>
+
+            <!-- VIEW 6: PAINEL DE ADMINISTRAÇÃO -->
+            <div id="view-administracao" class="view">
+                <h2 class="page-title">Painel de Administração</h2>
+                <p class="page-subtitle">Gerenciamento de contas de profissionais e reativação de usuários</p>
+
+                <!-- abas administrativas -->
+                <div class="admin-tabs">
+                    <button class="admin-tab-btn active" id="btn-tab-profissionais" onclick="window.toggleAdminSubTab('profissionais')">👥 Profissionais de Saúde</button>
+                    <button class="admin-tab-btn" id="btn-tab-pacientes" onclick="window.toggleAdminSubTab('pacientes')">🦟 Pacientes Inativos</button>
+                </div>
+
+                <!-- sub-view: profissionais -->
+                <div class="admin-sub-view active" id="sub-view-profissionais">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h4 style="margin: 0; color: #333; font-weight: 600;">Profissionais Cadastrados</h4>
+                        <span class="badge badge-blue" id="admin-prof-count">0 profissionais</span>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="patient-table">
+                            <thead>
+                                <tr>
+                                    <th>NOME</th>
+                                    <th>CRM / COREN</th>
+                                    <th>UBS VINCULADA</th>
+                                    <th>PERMISSÃO</th>
+                                    <th>STATUS</th>
+                                    <th>AÇÕES</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-admin-profissionais">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- sub-view: pacientes inativos -->
+                <div class="admin-sub-view" id="sub-view-pacientes">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h4 style="margin: 0; color: #333; font-weight: 600;">Pacientes Inativos</h4>
+                        <span class="badge badge-gray" id="admin-pac-count">0 pacientes</span>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="patient-table">
+                            <thead>
+                                <tr>
+                                    <th>NOME DO PACIENTE</th>
+                                    <th>NÚMERO CARTEIRA</th>
+                                    <th>TELEFONE</th>
+                                    <th>MOTIVO INATIVAÇÃO</th>
+                                    <th>AÇÕES</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-admin-pacientes">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 

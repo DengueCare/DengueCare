@@ -36,6 +36,10 @@ export class DashboardController {
         window.inativarCadastroMedico = this.inativarCadastroMedico.bind(this);
         window.toggleAdmissionsChart = this.toggleAdmissionsChart.bind(this);
         window.filtrarGraficoAdmissoes = this.filtrarGraficoAdmissoes.bind(this);
+        window.toggleAdminSubTab = this.toggleAdminSubTab.bind(this);
+        window.reactivarUsuarioPaciente = this.reactivarUsuarioPaciente.bind(this);
+        window.reactivarUsuarioProfissional = this.reactivarUsuarioProfissional.bind(this);
+        window.toggleAdminStatusProfissional = this.toggleAdminStatusProfissional.bind(this);
 
         this.alertedPatients = new Set();
         this.alertasDescartados = {}; // Armazena { "id_paciente": "dt_ultima_triagem_descartada" }
@@ -589,6 +593,8 @@ export class DashboardController {
             this.carregarRelatorios();
         } else if (idView === 'configuracoes') {
             this.carregarConfiguracoes();
+        } else if (idView === 'administracao') {
+            this.carregarAdministracao();
         }
     }
 
@@ -972,12 +978,21 @@ export class DashboardController {
         const nomeEl = document.getElementById('sidebar-dr-nome');
         const ubsEl = document.getElementById('sidebar-dr-ubs');
         const avatarEl = document.getElementById('sidebar-dr-avatar');
+        const navAdminEl = document.getElementById('nav-admin');
         
         if (nomeEl) nomeEl.textContent = "Dr(a). " + user.nome;
         if (ubsEl) ubsEl.textContent = user.ubs || "Nenhuma UBS vinculada";
         if (avatarEl) {
             const iniciais = user.nome.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
             avatarEl.textContent = iniciais;
+        }
+
+        if (navAdminEl) {
+            if (user.is_admin) {
+                navAdminEl.style.display = 'flex';
+            } else {
+                navAdminEl.style.display = 'none';
+            }
         }
     }
 
@@ -1225,6 +1240,204 @@ export class DashboardController {
         } catch(error) {
             console.error(error);
             alert("Erro ao inativar paciente.");
+        }
+    }
+
+    // ==========================================
+    // MÉTODOS DE ADMINISTRAÇÃO (DASHBOARD ADMIN)
+    // ==========================================
+    toggleAdminSubTab(tabName) {
+        document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.admin-sub-view').forEach(view => view.classList.remove('active'));
+
+        if (tabName === 'profissionais') {
+            document.getElementById('btn-tab-profissionais').classList.add('active');
+            document.getElementById('sub-view-profissionais').classList.add('active');
+        } else {
+            document.getElementById('btn-tab-pacientes').classList.add('active');
+            document.getElementById('sub-view-pacientes').classList.add('active');
+        }
+    }
+
+    async carregarAdministracao() {
+        await Promise.all([
+            this.carregarTabelaAdminProfissionais(),
+            this.carregarTabelaAdminPacientesInativos()
+        ]);
+    }
+
+    async carregarTabelaAdminProfissionais() {
+        const tbody = document.getElementById('lista-admin-profissionais');
+        const countLabel = document.getElementById('admin-prof-count');
+        if (!tbody) return;
+
+        try {
+            const data = await this.repo.getAllProfessionals();
+            tbody.innerHTML = '';
+            
+            if (countLabel) {
+                countLabel.textContent = `${data.length} profissional${data.length !== 1 ? 's' : ''}`;
+            }
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #888; padding: 20px;">Nenhum profissional cadastrado.</td></tr>`;
+                return;
+            }
+
+            const currentUserStr = localStorage.getItem('denguecare_user');
+            const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+
+            data.forEach(p => {
+                const statusBadge = p.status === 'ativo' 
+                    ? `<span class="badge badge-green">Ativo</span>` 
+                    : `<span class="badge badge-gray">Inativo</span>`;
+
+                const roleBadge = p.is_admin 
+                    ? `<span class="badge badge-blue">Admin</span>` 
+                    : `<span class="badge badge-gray">Profissional</span>`;
+
+                // Botão de reativação
+                let reactivateBtn = '';
+                if (p.status === 'inativo') {
+                    reactivateBtn = `
+                        <button class="btn-small btn-success" onclick="window.reactivarUsuarioProfissional('${p.carteira}')" title="Reativar profissional">
+                            <span>✅</span> Reativar
+                        </button>
+                    `;
+                }
+
+                // Botão de alternar admin
+                const isSelf = currentUser && currentUser.carteira === p.carteira;
+                const toggleAdminText = p.is_admin ? 'Remover Admin' : 'Tornar Admin';
+                const toggleAdminClass = p.is_admin ? 'btn-danger' : 'btn-blue';
+                const toggleAdminIcon = p.is_admin ? '🔑' : '🛡️';
+                
+                const toggleAdminBtn = isSelf 
+                    ? `<span style="font-size: 12px; color: #999; font-style: italic;">(Você)</span>` 
+                    : `
+                        <button class="btn-small ${toggleAdminClass}" onclick="window.toggleAdminStatusProfissional('${p.carteira}')">
+                            <span>${toggleAdminIcon}</span> ${toggleAdminText}
+                        </button>
+                    `;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${p.nome}</strong></td>
+                    <td><code>${p.carteira}</code></td>
+                    <td>${p.ubs || '<span style="color: #999; font-style: italic;">Sem UBS vinculada</span>'}</td>
+                    <td>${roleBadge}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            ${toggleAdminBtn}
+                            ${reactivateBtn}
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (error) {
+            console.error('Erro ao carregar profissionais no painel admin:', error);
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red; padding: 20px;">Erro ao carregar profissionais.</td></tr>`;
+        }
+    }
+
+    async carregarTabelaAdminPacientesInativos() {
+        const tbody = document.getElementById('lista-admin-pacientes');
+        const countLabel = document.getElementById('admin-pac-count');
+        if (!tbody) return;
+
+        try {
+            const data = await this.repo.getInactivePatients();
+            tbody.innerHTML = '';
+
+            if (countLabel) {
+                countLabel.textContent = `${data.length} paciente${data.length !== 1 ? 's' : ''}`;
+            }
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #888; padding: 20px;">Nenhum paciente inativo.</td></tr>`;
+                return;
+            }
+
+            data.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <div class="patient-name-col">
+                            <div class="avatar-sm">${p.nm_usuario ? p.nm_usuario.substring(0, 2).toUpperCase() : '--'}</div>
+                            <strong>${p.nm_usuario || 'Sem Nome'}</strong>
+                        </div>
+                    </td>
+                    <td><code>${p.nr_carteira || '--'}</code></td>
+                    <td>${p.telefone || '<span style="color: #999; font-style: italic;">Sem telefone</span>'}</td>
+                    <td><span class="badge badge-orange-outline">${p.motivo_inativacao || 'Não informado'}</span></td>
+                    <td>
+                        <button class="btn-small btn-success" onclick="window.reactivarUsuarioPaciente('${p.id}')">
+                            <span>🔄</span> Reativar
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (error) {
+            console.error('Erro ao carregar pacientes inativos no painel admin:', error);
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red; padding: 20px;">Erro ao carregar pacientes inativos.</td></tr>`;
+        }
+    }
+
+    async reactivarUsuarioPaciente(id) {
+        if (!confirm('Deseja realmente reativar este paciente e inseri-lo de volta no monitoramento ativo?')) return;
+
+        try {
+            const res = await this.repo.reactivatePatient(id);
+            if (res && res.success) {
+                alert('Paciente reativado com sucesso! Ele já consta na Fila Geral de Monitoramento.');
+                await this.carregarTabelaAdminPacientesInativos();
+                await this.carregarTabelaPacientes();
+                await this.carregarEstatisticas();
+            }
+        } catch (error) {
+            console.error('Erro ao reativar paciente:', error);
+            alert('Falha ao reativar o paciente.');
+        }
+    }
+
+    async reactivarUsuarioProfissional(carteira) {
+        if (!confirm('Deseja realmente reativar a conta deste profissional de saúde?')) return;
+
+        try {
+            const res = await this.repo.reactivateProfessional(carteira);
+            if (res && res.success) {
+                alert('Profissional de saúde reativado com sucesso!');
+                await this.carregarTabelaAdminProfissionais();
+            }
+        } catch (error) {
+            console.error('Erro ao reativar profissional:', error);
+            alert('Falha ao reativar profissional de saúde.');
+        }
+    }
+
+    async toggleAdminStatusProfissional(carteira) {
+        const currentUserStr = localStorage.getItem('denguecare_user');
+        const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+
+        if (currentUser && currentUser.carteira === carteira) {
+            alert('Ação Negada: Você não pode revogar suas próprias permissões de administrador.');
+            return;
+        }
+
+        if (!confirm('Tem certeza que deseja alterar o nível de acesso administrativo deste profissional de saúde?')) return;
+
+        try {
+            const res = await this.repo.toggleAdminProfessional(carteira);
+            if (res && res.success) {
+                alert('Nível de acesso do profissional alterado com sucesso!');
+                await this.carregarTabelaAdminProfissionais();
+            }
+        } catch (error) {
+            console.error('Erro ao alterar nível admin do profissional:', error);
+            alert('Falha ao alterar nível de acesso administrativo.');
         }
     }
 }

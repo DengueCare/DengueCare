@@ -2,7 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_db
-from app.services.auth_service import registrar_profissional, autenticar_profissional, atualizar_profissional, inativar_profissional
+from app.services.auth_service import (
+    registrar_profissional,
+    autenticar_profissional,
+    atualizar_profissional,
+    inativar_profissional,
+    listar_todos_profissionais,
+    reativar_profissional,
+    toggle_admin_profissional
+)
 
 router = APIRouter()
 
@@ -75,3 +83,33 @@ async def inactivate_profile(req: InactivateRequest, db: AsyncSession = Depends(
             raise HTTPException(status_code=404, detail="Profissional não encontrado.")
     except Exception as e:
         raise HTTPException(status_code=500, detail="Erro interno ao inativar perfil.")
+
+@router.get("/professionals")
+async def get_all_professionals(db: AsyncSession = Depends(get_db)):
+    try:
+        profs = await listar_todos_profissionais(db)
+        return {"success": True, "data": profs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erro interno ao listar profissionais.")
+
+@router.patch("/professionals/{carteira}/reactivate")
+async def reactivate_professional(carteira: str, db: AsyncSession = Depends(get_db)):
+    try:
+        success = await reativar_profissional(db, carteira)
+        if success:
+            return {"success": True, "message": "Profissional reativado com sucesso"}
+        else:
+            raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erro interno ao reativar profissional.")
+
+@router.patch("/professionals/{carteira}/toggle-admin")
+async def toggle_admin(carteira: str, db: AsyncSession = Depends(get_db)):
+    try:
+        prof = await toggle_admin_profissional(db, carteira)
+        if prof:
+            return {"success": True, "message": "Permissão de administrador alterada", "data": prof}
+        else:
+            raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erro interno ao alterar permissão do profissional.")
