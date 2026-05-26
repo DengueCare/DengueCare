@@ -55,9 +55,6 @@ Básicas de Saúde (UBS) enfrentam sobrecarga nas triagens presenciais, enquanto
 pacientes em monitoramento domiciliar frequentemente não conseguem identificar,
 por conta própria, os sinais de alarme que indicam agravamento da doença.
 
-> 🤝 **Empresa Parceira:** Vigilância Epidemiológica de Rio Claro — representada por
-> João Guilherme Benetti Ramos (Doutorando, USP).
-
 ### Problema
 
 - **Subnotificação de sinais de alarme:** pacientes em casa não relatam sintomas
