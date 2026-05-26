@@ -437,6 +437,9 @@ export class DashboardController {
     validarCarteiraProfissional(carteirinha) {
     const credencial = carteirinha.trim().toUpperCase();
 
+    // Libera acesso imediato se a conta for de administrador
+    if (credencial === 'ADMIN') return true;
+
     // Regex CRM: Exige 'CRM/' seguido de 2 letras da UF, espaço e números (Ex: CRM/SP 123456)
     const regexCRM = /^CRM\/[A-Z]{2}\s\d+$/;
     

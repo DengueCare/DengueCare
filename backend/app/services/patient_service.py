@@ -125,7 +125,8 @@ async def atualizar_paciente(db: AsyncSession, paciente_id: int, **dados) -> boo
                 UPDATE paciente 
                 SET "DT_NASCIMENTO" = :dt, cs_sexo = :sx, diabetes = :d, 
                     hematolog = :h1, hepatopat = :h2, renal = :r, 
-                    hipertensa = :h3, acido_pept = :a, auto_imune = :ai
+                    hipertensa = :h3, acido_pept = :a, auto_imune = :ai,
+                    telefone = :tel
                 WHERE id = :id
             """),
             {
@@ -133,7 +134,8 @@ async def atualizar_paciente(db: AsyncSession, paciente_id: int, **dados) -> boo
                 "d": str(int(dados['diabetes'])), "h1": str(int(dados['hematolog'])),
                 "h2": str(int(dados['hepatopat'])), "r": str(int(dados['renal'])),
                 "h3": str(int(dados['hipertensa'])), "a": str(int(dados['acido_pept'])),
-                "ai": str(int(dados['auto_imune']))
+                "ai": str(int(dados['auto_imune'])),
+                "tel":dados.get('telefone')
             }
         )
         await db.commit()
