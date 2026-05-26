@@ -434,6 +434,18 @@ export class DashboardController {
         }
     }
 
+    validarCarteiraProfissional(carteirinha) {
+    const credencial = carteirinha.trim().toUpperCase();
+
+    // Regex CRM: Exige 'CRM/' seguido de 2 letras da UF, espaço e números (Ex: CRM/SP 123456)
+    const regexCRM = /^CRM\/[A-Z]{2}\s\d+$/;
+    
+    // Regex COREN: Exige 'COREN-' seguido de 2 letras da UF, espaço, números, hífen e a sigla da categoria (Ex: COREN-SP 123456-ENF)
+    const regexCOREN = /^COREN-[A-Z]{2}\s\d+-[A-Z]{2,3}$/;
+
+    return regexCRM.test(credencial) || regexCOREN.test(credencial);
+}
+
     validarSenha(senha) {
         if (senha.length < 8) {
             return "A senha deve ter pelo menos 8 caracteres.";
@@ -454,6 +466,13 @@ export class DashboardController {
         
         if(id === '' || senha === '') {
             errorEl.textContent = 'Preencha todos os campos!';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        // VALIDAÇÃO ADICIONADA AQUI:
+        if (!this.validarCarteiraProfissional(id)) {
+            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000' ou 'COREN-XX 000000-SIGLA'.";
             errorEl.style.display = 'block';
             return;
         }
@@ -514,6 +533,13 @@ export class DashboardController {
         
         if(nome === '' || id === '' || senha === '') {
             errorEl.textContent = 'Preencha todos os campos!';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        // VALIDAÇÃO ADICIONADA AQUI:
+        if (!this.validarCarteiraProfissional(id)) {
+            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000' ou 'COREN-XX 000000-SIGLA'.";
             errorEl.style.display = 'block';
             return;
         }
