@@ -4,7 +4,11 @@
 <!-- Badges -->
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.4+-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
-![Status](https://img.shields.io/badge/Status-Em_Desenvolvimento-yellow?style=for-the-badge)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Telegram](https://img.shields.io/badge/Telegram_Bot-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
+![Status](https://img.shields.io/badge/Status-MVP_Funcional-brightgreen?style=for-the-badge)
 ![Fatec](https://img.shields.io/badge/Fatec-Rio_Claro-003087?style=for-the-badge)
 
 ```
@@ -12,7 +16,7 @@
 ║                                                          ║
 ║    🦟  D E N G U E C A R E   A I                        ║
 ║                                                          ║
-║    Telemonitoramento Preditivo com Chatbot Próprio       ║
+║    Telemonitoramento Preditivo via Bot Telegram          ║
 ║    Prevenindo agravamentos. Salvando vidas.              ║
 ║                                                          ║
 ║    [ Substituir por banner do projeto ]                  ║
@@ -20,7 +24,7 @@
 ╚══════════════════════════════════════════════════════════╝
 ```
 
-> **Sistema de telemonitoramento preditivo com chatbot próprio** que acompanha
+> **Sistema de telemonitoramento preditivo via Bot Telegram** que acompanha
 > diariamente pacientes com suspeita ou diagnóstico de dengue, utilizando Machine
 > Learning treinado com dados reais do SINAN para identificar silenciosamente sinais
 > de agravamento e emitir alertas em tempo real para equipes médicas da UBS —
@@ -36,7 +40,6 @@
 - [Arquitetura e Fluxo do Sistema](#arquitetura-e-fluxo-do-sistema)
 - [Modelagem de Dados](#modelagem-de-dados)
 - [Como Executar Localmente](#como-executar-localmente)
-- [Roadmap / Sprints](#roadmap--sprints)
 - [Equipe](#equipe)
 - [Conformidade LGPD](#conformidade-lgpd)
 
@@ -52,6 +55,9 @@ Básicas de Saúde (UBS) enfrentam sobrecarga nas triagens presenciais, enquanto
 pacientes em monitoramento domiciliar frequentemente não conseguem identificar,
 por conta própria, os sinais de alarme que indicam agravamento da doença.
 
+> 🤝 **Empresa Parceira:** Vigilância Epidemiológica de Rio Claro — representada por
+> João Guilherme Benetti Ramos (Doutorando, USP).
+
 ### Problema
 
 - **Subnotificação de sinais de alarme:** pacientes em casa não relatam sintomas
@@ -64,11 +70,12 @@ por conta própria, os sinais de alarme que indicam agravamento da doença.
 ### Solução
 
 O **DengueCare AI** automatiza o acompanhamento pós-consulta por meio de um
-chatbot próprio desenvolvido em HTML, CSS e JavaScript. Diariamente, o paciente
-responde a perguntas mapeadas aos sinais de alarme do SINAN. Um modelo de
-Machine Learning processa as respostas e classifica o paciente nos **Grupos
-Clínicos A, B, C ou D** do protocolo do SUS, gerando um score de risco exibido
-em tempo real no Dashboard da UBS.
+**Bot Telegram** (`python-telegram-bot`), em produção no Render. O paciente
+interage via Telegram respondendo a perguntas mapeadas aos sinais de alarme do
+SINAN. Um modelo de Machine Learning (`modelo_dengue_v1.pkl`) processa as
+respostas e classifica o paciente nos **Grupos Clínicos A, B, C ou D** do
+protocolo do SUS, gerando um score de risco exibido em tempo real no Dashboard
+da UBS.
 
 > **Proposta de valor:** Evitar o agravamento da dengue por meio do monitoramento
 > remoto e contínuo, guiando pacientes de baixo risco ao cuidado domiciliar e
@@ -81,16 +88,16 @@ em tempo real no Dashboard da UBS.
 | # | Código | Funcionalidade |
 |---|--------|----------------|
 | 1 | `RF-01` | 🩺 **Cadastro médico:** Interface web para registro rápido do paciente com baseline clínica após diagnóstico na UBS |
-| 2 | `RF-02` | 💬 **Chatbot próprio:** Respostas numéricas fechadas, diárias, mapeadas ao Dicionário de Dados do SINAN, acessado via aplicação web (HTML, CSS e JavaScript) |
+| 2 | `RF-02` | 💬 **Bot Telegram:** Fluxo de identificação, cadastro e acompanhamento de sintomas via Telegram (`python-telegram-bot`), com respostas numéricas fechadas mapeadas ao Dicionário de Dados do SINAN |
 | 3 | `RF-03` | 🔧 **Pipeline ETL:** Limpeza, transformação e treinamento do modelo com dados reais das fichas SINAN |
 | 4 | `RF-04` | 🤖 **API de Previsão:** Endpoint Python que recebe o array diário de sintomas e retorna o score de risco |
 | 5 | `RF-05` | 📊 **Dashboard de Triagem:** Fila ordenada por gravidade com semáforo visual (🟢 Verde / 🟡 Amarelo / 🔴 Vermelho) |
 
 ### Comportamento por grupo de risco
 
-- 🟢 **Grupo A (Baixo Risco):** Chatbot envia orientações de hidratação e repouso.
-- 🟡 **Grupo B (Atenção):** Chatbot alerta sobre sinais a observar; Dashboard destaca o paciente.
-- 🔴 **Grupos C/D (Alto Risco):** Chatbot orienta retorno imediato à UPA; Dashboard emite alerta vermelho e eleva o paciente ao topo da fila.
+- 🟢 **Grupo A (Baixo Risco):** Bot Telegram envia orientações de hidratação e repouso.
+- 🟡 **Grupo B (Atenção):** Bot Telegram alerta sobre sinais a observar; Dashboard destaca o paciente.
+- 🔴 **Grupos C/D (Alto Risco):** Bot Telegram orienta retorno imediato à UPA; Dashboard emite alerta vermelho e eleva o paciente ao topo da fila.
 
 ---
 
@@ -98,11 +105,14 @@ em tempo real no Dashboard da UBS.
 
 | Camada | Tecnologia | Finalidade |
 |--------|-----------|------------|
-| **Backend / ML** | ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white) Scikit-Learn | Modelos: `DecisionTreeClassifier`, `RandomForest` ou `SVM` |
-| **ETL de Dados** | ![Pandas](https://img.shields.io/badge/Pandas-150458?logo=pandas&logoColor=white) Pandas | Limpeza e transformação das fichas SINAN/DataSUS |
-| **Dados** | DataSUS / SINAN | Fichas de dengue do município de Rio Claro |
-| **Frontend** | ![HTML](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black) | Chatbot de monitoramento e Dashboard Web (fila de risco) |
-| **Infraestrutura** | ☁️ Cloud | Hospedagem em servidores em nuvem |
+| **Backend** | ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white) Python 3.11+ | Rotas `POST /api/v1/chat/send` · `GET /patients/` — deploy no Render |
+| **ML / IA** | ![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-F7931E?logo=scikit-learn&logoColor=white) | `modelo_dengue_v1.pkl` — classifica Grupos A/B/C/D (protocolo SUS) |
+| **ETL de Dados** | ![Pandas](https://img.shields.io/badge/Pandas-150458?logo=pandas&logoColor=white) Pandas | Limpeza e transformação das fichas SINAN 2026 / DataSUS |
+| **Dados** | DataSUS / SINAN 2026 | Base pública usada no treinamento (dados de Rio Claro aguardando parceiro) |
+| **Bot / Mensageria** | ![Telegram](https://img.shields.io/badge/Telegram_Bot-2CA5E0?logo=telegram&logoColor=white) python-telegram-bot | Identificação, cadastro e fluxo de sintomas via Webhook — deploy no Render |
+| **Banco de Dados** | ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white) PostgreSQL + SQLAlchemy | Tabelas `paciente` + colunas de atendimento — acesso assíncrono |
+| **Frontend** | ![HTML](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white) ![CSS](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black) | Dashboard Web com fila de risco em tempo real |
+| **Infraestrutura** | ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=white) | Hospedagem do backend FastAPI + webhook Telegram em produção |
 | **Gestão** | ![Trello](https://img.shields.io/badge/Trello-0052CC?logo=trello&logoColor=white) ![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white) | Scrum/Agile — Sprints, Trello e controle de versão |
 
 ---
@@ -112,18 +122,18 @@ em tempo real no Dashboard da UBS.
 ```mermaid
 flowchart TD
     A[👨‍⚕️ Médico UBS] -->|Cadastra paciente| B[Interface Web - RF-01]
-    B -->|Salva baseline clínica| C[(Banco de Dados)]
+    B -->|Salva baseline clínica| C[(Supabase — PostgreSQL)]
 
-    C -->|Agenda contato diário| D[🤖 Chatbot Web - RF-02]
-    D -->|Perguntas fechadas SINAN| E[🖥️ Paciente]
+    C -->|Agenda contato diário| D[🤖 Bot Telegram - RF-02]
+    D -->|Perguntas fechadas SINAN| E[📱 Paciente]
     E -->|Respostas numéricas| D
 
-    D -->|Array de sintomas| F[API de Previsão Python - RF-04]
-    F -->|ETL + Modelo ML - RF-03| G{Classificação de Risco}
+    D -->|POST /api/v1/chat/send| F[⚙️ FastAPI Backend - RF-04]
+    F -->|ml_service.py — modelo_dengue_v1.pkl - RF-03| G{Classificação de Risco}
 
-    G -->|Grupo A - Baixo| H[✅ Orientações de repouso e hidratação via chatbot]
-    G -->|Grupos C/D - Alto| I[🚨 Alerta: retornar à UPA via chatbot]
-    G -->|Todos os grupos| J[📊 Dashboard - RF-05]
+    G -->|Grupo A/B - Baixo| H[✅ Orientações de repouso e hidratação via Telegram]
+    G -->|Grupos C/D - Alto| I[🚨 Alerta: retornar à UPA via Telegram]
+    G -->|Todos os grupos| J[📊 Dashboard Web - RF-05]
 
     I --> J
     J -->|🔴 Vermelho - topo da fila| K[👩‍⚕️ Equipe Médica UBS]
@@ -168,7 +178,7 @@ flowchart TD
 ### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/<seu-usuario>/DengueCare.git
+git clone https://github.com/DengueCare/DengueCare.git
 cd DengueCare
 ```
 
@@ -197,11 +207,14 @@ cp .env.example .env
 Edite o arquivo `.env`:
 
 ```env
-# Banco de Dados
-DATABASE_URL=postgresql://usuario:senha@localhost:5432/denguecare
+# Banco de Dados (Supabase)
+DATABASE_URL=postgresql+asyncpg://usuario:senha@db.<projeto>.supabase.co:5432/postgres
+
+# Bot Telegram
+TELEGRAM_BOT_TOKEN=seu_token_aqui
 
 # Configurações do Modelo ML
-MODEL_PATH=./models/dengue_classifier.pkl
+MODEL_PATH=./models/modelo_dengue_v1.pkl
 RECALL_THRESHOLD=0.95
 
 # Segurança
@@ -230,40 +243,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 |---------|-----|
 | API (Swagger) | `http://localhost:8000/docs` |
 | Dashboard Web | `http://localhost:8000/dashboard` |
-| Chatbot | `http://localhost:8000/chatbot` |
+| Webhook Telegram | `http://localhost:8000/webhook/telegram` |
 
----
-
-## 🗓️ Roadmap / Sprints
-
-```
-Sprint 1 ──────────────────────────────────────────────── [Em andamento]
-│
-├── 🔬 ETL & Dados
-│   ├── [ ] Download e inspeção das fichas SINAN de Rio Claro
-│   ├── [ ] Limpeza e anonimização (LGPD)
-│   ├── [ ] Engenharia de features (sinais de alarme)
-│   └── [ ] Treinamento inicial do modelo (baseline)
-│
-├── 🗄️ Banco de Dados
-│   ├── [ ] Definição do schema (paciente, atendimento, monitoramento)
-│   └── [ ] Migrations e seed de dados de teste
-│
-Sprint 2 ──────────────────────────────────────────────── [Planejado]
-│
-├── ⚙️ Backend & Integração
-│   ├── [ ] API de previsão (endpoint /predict)
-│   ├── [ ] Lógica do fluxo de perguntas do chatbot
-│   └── [ ] Serviço de alertas e fila de risco
-│
-Sprint 3 ──────────────────────────────────────────────── [Planejado]
-│
-└── 🖥️ Frontend & Refinamento
-    ├── [ ] Dashboard Web (fila por gravidade)
-    ├── [ ] Testes ponta a ponta (cadastro → Chatbot → Dashboard)
-    ├── [ ] Auditoria de viés do modelo
-    └── [ ] Documentação final e deploy em nuvem
-```
 
 ---
 
@@ -271,16 +252,16 @@ Sprint 3 ───────────────────────�
 
 **Fatec Rio Claro — Projeto Integrador 3 | 3º Semestre / 2026 — Grupo 1**
 
-| Papel | Nome |
-|-------|------|
-| 🎯 **Product Owner** | Heitor Vitti Partezani |
-| 🔄 **Scrum Master** | Guilherme Peres Romanzotti |
-| 👨‍💻 **Dev Team** | César Augusto Oliveira Bovo |
-| 👩‍💻 **Dev Team** | Elisa Almeida Alcântara |
-| 👨‍💻 **Dev Team** | Luis Otavio Routh da Silva |
-| 👨‍💻 **Dev Team** | Marvin Cristhian Gomes Pinto |
-| 👨‍💻 **Dev Team** | Paulo Guilherme Moreira |
-| 👨‍💻 **Dev Team** | Raphael Culim Neves |
+| Papel | Nome | Destaque |
+|-------|------|----------|
+| 🎯 **Product Owner** | Heitor Vitti Partezani | Banco de Dados (Supabase) |
+| 🔄 **Scrum Master** | Guilherme Peres Romanzotti | Gestão, comunicação com parceiro |
+| 👨‍💻 **Dev Team** | César Augusto Oliveira Bovo | Documentação técnica |
+| 👩‍💻 **Dev Team** | Elisa Almeida Alcântara | **Accountable — IA / ETL / ML** |
+| 👨‍💻 **Dev Team** | Luis Otavio Routh da Silva | Frontend & Fluxo de cadastro |
+| 👨‍💻 **Dev Team** | Marvin Cristhian Gomes Pinto | **Accountable — Backend & Integração IA** |
+| 👨‍💻 **Dev Team** | Paulo Guilherme Moreira | Design / Verificação de identidade |
+| 👨‍💻 **Dev Team** | Raphael Culim Neves | Fluxo conversacional do chatbot |
 
 ---
 
@@ -300,7 +281,7 @@ implementadas:
 - **Finalidade específica:** os dados são utilizados exclusivamente para
   monitoramento de saúde dos pacientes cadastrados e melhoria dos modelos
   preditivos.
-- **Disclaimer no chatbot:** toda interação inclui a seguinte mensagem automática:
+- **Disclaimer no bot:** toda interação via Bot Telegram inclui a seguinte mensagem automática:
 
   > *"Este serviço é um suporte ao acompanhamento médico e **não substitui
   > diagnóstico, prescrição ou orientação médica profissional**. Em caso de
