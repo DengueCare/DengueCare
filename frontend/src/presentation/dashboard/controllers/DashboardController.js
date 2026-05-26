@@ -567,15 +567,28 @@ export class DashboardController {
     }
 
     async criarConta() {
-        const nome = document.getElementById('reg-nome').value.trim();
-        const id = document.getElementById('reg-id').value.trim();
-        const senha = document.getElementById('reg-senha').value.trim();
-        const pergunta = document.getElementById('reg-pergunta').value;
-        const resposta = document.getElementById('reg-resposta').value.trim();
-        const isAdmin = document.getElementById('reg-is-admin').checked;
+        const nomeEl = document.getElementById('reg-nome');
+        const idEl = document.getElementById('reg-id');
+        const senhaEl = document.getElementById('reg-senha');
+        const perguntaEl = document.getElementById('reg-pergunta');
+        const respostaEl = document.getElementById('reg-resposta');
+        const isAdminEl = document.getElementById('reg-is-admin');
         const errorEl = document.getElementById('reg-error');
         
-        if(nome === '' || id === '' || senha === '' || pergunta === '' || resposta === '') {
+        if (!nomeEl || !idEl || !senhaEl || !errorEl) {
+            console.error("Elementos do formulário de cadastro não foram encontrados no DOM!");
+            alert("Erro: O formulário de cadastro está desatualizado no cache do seu navegador. Por favor, limpe o histórico/cache e atualize a página.");
+            return;
+        }
+
+        const nome = nomeEl.value.trim();
+        const id = idEl.value.trim();
+        const senha = senhaEl.value.trim();
+        const pergunta = perguntaEl ? perguntaEl.value : "";
+        const resposta = respostaEl ? respostaEl.value.trim() : "";
+        const isAdmin = isAdminEl ? isAdminEl.checked : false;
+        
+        if(nome === '' || id === '' || senha === '' || (perguntaEl && pergunta === '') || (respostaEl && resposta === '')) {
             errorEl.textContent = 'Preencha todos os campos obrigatórios!';
             errorEl.style.display = 'block';
             return;
