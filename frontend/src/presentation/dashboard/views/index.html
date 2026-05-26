@@ -71,9 +71,28 @@
         // Diagnostic error logging to help identify why the controller fails to load
         window.addEventListener('error', function(e) {
             console.error("DengueCare script error detected:", e);
+            
+            // Exibir erro em uma notificação toast flutuante sempre visível
+            let toast = document.getElementById('debug-toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'debug-toast';
+                toast.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(220, 38, 38, 0.95); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 16px 24px; border-radius: 12px; font-size: 14px; font-weight: bold; box-shadow: 0 10px 35px rgba(0,0,0,0.4); backdrop-filter: blur(8px); z-index: 100000; text-align: center; max-width: 90%; line-height: 1.5; animation: slideDown 0.3s ease;';
+                
+                // Inserir estilo da animação se não existir
+                let style = document.createElement('style');
+                style.textContent = '@keyframes slideDown { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }';
+                document.head.appendChild(style);
+                
+                document.body.appendChild(toast);
+            }
+            const file = e.filename ? e.filename.split('/').pop() : 'script';
+            toast.innerHTML = `⚠️ <strong>Erro no Navegador:</strong> ${e.message}<br><span style="font-size:11px; font-weight:normal; opacity:0.8;">Arquivo: ${file} (Linha ${e.lineno})</span>`;
+            toast.style.display = 'block';
+            
+            // Também exibir no formulário de erro do login se possível
             const errorEl = document.getElementById('login-error');
             if (errorEl) {
-                const file = e.filename ? e.filename.split('/').pop() : 'script';
                 errorEl.innerHTML = `<strong>Erro de Carregamento:</strong> ${e.message}<br><span style="font-size:11px; opacity:0.8;">Arquivo: ${file} (Linha ${e.lineno})</span>`;
                 errorEl.style.display = 'block';
             }
@@ -81,11 +100,15 @@
 
         window.addEventListener('unhandledrejection', function(e) {
             console.error("DengueCare promise rejection detected:", e);
-            const errorEl = document.getElementById('login-error');
-            if (errorEl) {
-                errorEl.innerHTML = `<strong>Erro Interno (Promessa Rejeitada):</strong> ${e.reason}`;
-                errorEl.style.display = 'block';
+            let toast = document.getElementById('debug-toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'debug-toast';
+                toast.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(220, 38, 38, 0.95); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 16px 24px; border-radius: 12px; font-size: 14px; font-weight: bold; box-shadow: 0 10px 35px rgba(0,0,0,0.4); backdrop-filter: blur(8px); z-index: 100000; text-align: center; max-width: 90%; line-height: 1.5;';
+                document.body.appendChild(toast);
             }
+            toast.innerHTML = `⚠️ <strong>Erro Interno (Promessa Rejeitada):</strong> ${e.reason}`;
+            toast.style.display = 'block';
         });
     </script>
     <button class="hamburger-btn" id="hamburger-btn" onclick="window.toggleSidebar()" aria-label="Abrir menu">☰</button>
