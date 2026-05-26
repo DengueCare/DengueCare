@@ -1,8 +1,23 @@
 import os
 import hashlib
 import binascii
+import re
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+def validar_senha(senha: str) -> None:
+    """
+    Valida se a senha atende aos critérios de segurança:
+    1) Pelo menos 8 caracteres
+    2) Pelo menos uma letra maiúscula
+    3) Pelo menos 1 caractere especial
+    """
+    if len(senha) < 8:
+        raise ValueError("A senha deve ter pelo menos 8 caracteres.")
+    if not re.search(r"[A-Z]", senha):
+        raise ValueError("A senha deve conter pelo menos uma letra maiúscula.")
+    if not re.search(r"[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôûÂÊÎÔÛãõÃÕçÇ\s]", senha):
+        raise ValueError("A senha deve conter pelo menos um caractere especial (ex: !, @, #, $, %, etc.).")
 
 def hash_password(password: str, salt: bytes = None) -> tuple[str, str]:
     """
@@ -28,8 +43,11 @@ def verify_password(stored_password_hash: str, stored_salt_hex: str, provided_pa
 async def registrar_profissional(db: AsyncSession, nome: str, carteira: str, senha: str) -> dict:
     """
     Registra um novo profissional de saúde no banco de dados.
-    Levanta exceção se a carteira já existir.
+    Levanta exceção se a carteira já existir ou se a senha for inválida.
     """
+    # 0. Validar critérios de senha
+    validar_senha(senha)
+
     # 1. Checar se já existe
     result = await db.execute(
         text("SELECT id FROM profissional WHERE carteira = :carteira"),
@@ -111,6 +129,7 @@ async def atualizar_profissional(db: AsyncSession, carteira: str, novo_nome: str
         params["ubs"] = nova_ubs
         
     if nova_senha:
+        validar_senha(nova_senha)
         senha_hash, salt = hash_password(nova_senha)
         updates.append("senha_hash = :senha_hash")
         updates.append("salt = :salt")

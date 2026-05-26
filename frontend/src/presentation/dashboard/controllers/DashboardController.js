@@ -434,6 +434,19 @@ export class DashboardController {
         }
     }
 
+    validarSenha(senha) {
+        if (senha.length < 8) {
+            return "A senha deve ter pelo menos 8 caracteres.";
+        }
+        if (!/[A-Z]/.test(senha)) {
+            return "A senha deve conter pelo menos uma letra maiúscula.";
+        }
+        if (!/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôûÂÊÎÔÛãõÃÕçÇ\s]/.test(senha)) {
+            return "A senha deve conter pelo menos um caractere especial (ex: !, @, #, $, %, etc.).";
+        }
+        return null;
+    }
+
     async fazerLogin() {
         const id = document.getElementById('login-id').value.trim();
         const senha = document.getElementById('login-senha').value.trim();
@@ -501,6 +514,13 @@ export class DashboardController {
         
         if(nome === '' || id === '' || senha === '') {
             errorEl.textContent = 'Preencha todos os campos!';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        const erroSenha = this.validarSenha(senha);
+        if (erroSenha) {
+            errorEl.textContent = erroSenha;
             errorEl.style.display = 'block';
             return;
         }
@@ -956,6 +976,16 @@ export class DashboardController {
         const novaSenha = document.getElementById('conf-senha').value.trim();
         const novaUbs = document.getElementById('conf-ubs').value;
         const msgEl = document.getElementById('conf-msg');
+        
+        if (novaSenha !== '') {
+            const erroSenha = this.validarSenha(novaSenha);
+            if (erroSenha) {
+                msgEl.textContent = erroSenha;
+                msgEl.style.color = "var(--red-alert)";
+                msgEl.style.display = "block";
+                return;
+            }
+        }
         
         try {
             const dataToUpdate = {

@@ -60,6 +60,8 @@ async def update_profile(req: UpdateProfileRequest, db: AsyncSession = Depends(g
             return {"success": True, "message": "Perfil atualizado com sucesso", "data": prof}
         else:
             raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Erro interno ao atualizar perfil.")
 
