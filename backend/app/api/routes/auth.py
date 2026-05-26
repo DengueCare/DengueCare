@@ -9,7 +9,9 @@ from app.services.auth_service import (
     inativar_profissional,
     listar_todos_profissionais,
     reativar_profissional,
-    toggle_admin_profissional
+    toggle_admin_profissional,
+    obter_pergunta_seguranca,
+    recuperar_senha_por_pergunta
 )
 
 router = APIRouter()
@@ -18,6 +20,9 @@ class RegisterRequest(BaseModel):
     nome: str
     carteira: str
     senha: str
+    pergunta_seguranca: str
+    resposta_seguranca: str
+    is_admin: bool = False
 
 class LoginRequest(BaseModel):
     carteira: str
@@ -32,18 +37,31 @@ class UpdateProfileRequest(BaseModel):
 class InactivateRequest(BaseModel):
     carteira: str
 
+class RecoverPasswordRequest(BaseModel):
+    carteira: str
+    resposta: str
+    nova_senha: str
+
 @router.post("/register")
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     try:
-        if not req.nome or not req.carteira or not req.senha:
-            raise ValueError("Nome, carteira e senha são obrigatórios.")
+        if not req.nome or not req.carteira or not req.senha or not req.pergunta_seguranca or not req.resposta_seguranca:
+            raise ValueError("Nome, carteira, senha, pergunta e resposta de segurança são obrigatórios.")
             
-        prof = await registrar_profissional(db, req.nome, req.carteira, req.senha)
+        prof = await registrar_profissional(
+            db, 
+            req.nome, 
+            req.carteira, 
+            req.senha, 
+            req.pergunta_seguranca, 
+            req.resposta_seguranca,
+            req.is_admin
+        )
         return {"success": True, "message": "Usuário criado com sucesso", "data": prof}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Erro interno ao registrar usuário.")
+        raise HTTPException(status_code=500, detail=f"Erro interno ao registrar usuário: {str(e)}")
 
 @router.post("/login")
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
@@ -113,3 +131,27 @@ async def toggle_admin(carteira: str, db: AsyncSession = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Profissional não encontrado.")
     except Exception as e:
         raise HTTPException(status_code=500, detail="Erro interno ao alterar permissão do profissional.")
+
+@router.get("/recovery-question")
+async def get_recovery_question(carteira: str, db: AsyncSession = Depends(get_db)):
+    try:
+        pergunta = await obter_pergunta_seguranca(db, carteira)
+        if pergunta:
+            return {"success": True, "pergunta": pergunta}
+        else:
+            raise HTTPException(status_code=404, detail="Profissional ou pergunta não encontrados.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Erro interno ao obter pergunta de segurança.")
+
+@router.post("/recover-password")
+async def recover_password(req: RecoverPasswordRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        success = await recuperar_senha_por_pergunta(db, req.carteira, req.resposta, req.nova_senha)
+        if success:
+            return {"success": True, "message": "Senha redefinida com sucesso!"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno ao redefinir senha: {str(e)}")

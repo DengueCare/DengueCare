@@ -2,6 +2,7 @@ import os
 import hashlib
 import binascii
 import re
+import unicodedata
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,33 @@ def validar_senha(senha: str) -> None:
         raise ValueError("A senha deve conter pelo menos uma letra maiúscula.")
     if not re.search(r"[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôûÂÊÎÔÛãõÃÕçÇ\s]", senha):
         raise ValueError("A senha deve conter pelo menos um caractere especial (ex: !, @, #, $, %, etc.).")
+
+def normalizar_resposta(texto: str) -> str:
+    """
+    Remove acentos, espaços extras e converte para minúsculas.
+    Exemplo: "São Paulo " -> "sao paulo"
+    """
+    if not texto:
+        return ""
+    texto = " ".join(texto.lower().strip().split())
+    nfkd = unicodedata.normalize('NFKD', texto)
+    return "".join([c for c in nfkd if not unicodedata.combining(c)])
+
+def validar_carteira(carteira: str, is_admin: bool) -> None:
+    """
+    Valida a carteira profissional (CRM/COREN).
+    Se for administrador (ou começar com ADMIN), ignora a validação de CRM/COREN e exige min de 4 caracteres.
+    """
+    credencial = carteira.strip().upper()
+    if is_admin or credencial.startswith('ADMIN'):
+        if len(credencial) < 4:
+            raise ValueError("O identificador de administrador deve ter pelo menos 4 caracteres.")
+        return
+
+    # CRM/COREN validation: extract digits
+    apenas_digitos = re.sub(r"\D", "", credencial)
+    if len(apenas_digitos) < 4 or len(apenas_digitos) > 10:
+        raise ValueError("CRM ou COREN inválido. Deve conter entre 4 e 10 números (ex: 123456 ou 123456/SP).")
 
 def hash_password(password: str, salt: bytes = None) -> tuple[str, str]:
     """
@@ -40,13 +68,18 @@ def verify_password(stored_password_hash: str, stored_salt_hex: str, provided_pa
     provided_hash, _ = hash_password(provided_password, salt)
     return provided_hash == stored_password_hash
 
-async def registrar_profissional(db: AsyncSession, nome: str, carteira: str, senha: str) -> dict:
+async def registrar_profissional(db: AsyncSession, nome: str, carteira: str, senha: str, pergunta_seguranca: str, resposta_seguranca: str, is_admin: bool = False) -> dict:
     """
     Registra um novo profissional de saúde no banco de dados.
-    Levanta exceção se a carteira já existir ou se a senha for inválida.
+    Levanta exceção se a carteira já existir ou se a senha/carteira/resposta forem inválidas.
     """
-    # 0. Validar critérios de senha
+    # 0. Validar critérios
     validar_senha(senha)
+    validar_carteira(carteira, is_admin)
+    
+    resposta_normalizada = normalizar_resposta(resposta_seguranca)
+    if not pergunta_seguranca or not resposta_normalizada:
+        raise ValueError("Pergunta e resposta de segurança são obrigatórias.")
 
     # 1. Checar se já existe
     result = await db.execute(
@@ -62,15 +95,18 @@ async def registrar_profissional(db: AsyncSession, nome: str, carteira: str, sen
     # 3. Inserir no banco
     insert_result = await db.execute(
         text('''
-            INSERT INTO profissional (nome, carteira, senha_hash, salt, status)
-            VALUES (:nome, :carteira, :senha_hash, :salt, 'ativo')
+            INSERT INTO profissional (nome, carteira, senha_hash, salt, status, pergunta_seguranca, resposta_seguranca, is_admin)
+            VALUES (:nome, :carteira, :senha_hash, :salt, 'ativo', :pergunta, :resposta, :is_admin)
             RETURNING id, nome, carteira, ubs, status, dt_criacao, is_admin
         '''),
         {
             "nome": nome,
             "carteira": carteira,
             "senha_hash": senha_hash,
-            "salt": salt
+            "salt": salt,
+            "pergunta": pergunta_seguranca,
+            "resposta": resposta_normalizada,
+            "is_admin": is_admin
         }
     )
     await db.commit()
@@ -201,3 +237,53 @@ async def toggle_admin_profissional(db: AsyncSession, carteira: str) -> dict | N
     await db.commit()
     updated_row = update_result.fetchone()
     return dict(updated_row._mapping) if updated_row else None
+
+async def obter_pergunta_seguranca(db: AsyncSession, carteira: str) -> str | None:
+    """
+    Retorna a pergunta de segurança cadastrada para o profissional.
+    """
+    result = await db.execute(
+        text("SELECT pergunta_seguranca FROM profissional WHERE carteira = :carteira"),
+        {"carteira": carteira}
+    )
+    row = result.fetchone()
+    if row:
+        return row[0]
+    return None
+
+async def recuperar_senha_por_pergunta(db: AsyncSession, carteira: str, resposta: str, nova_senha: str) -> bool:
+    """
+    Verifica a resposta de segurança e, se correta, atualiza para a nova senha.
+    """
+    # 0. Validar critérios da nova senha
+    validar_senha(nova_senha)
+
+    # 1. Buscar a resposta correta no banco
+    result = await db.execute(
+        text("SELECT resposta_seguranca FROM profissional WHERE carteira = :carteira"),
+        {"carteira": carteira}
+    )
+    row = result.fetchone()
+    if not row:
+        raise ValueError("Profissional não encontrado.")
+    
+    resposta_correta = row[0]
+    if not resposta_correta:
+        raise ValueError("Este profissional não possui pergunta de segurança cadastrada.")
+
+    # 2. Comparar respostas normalizadas
+    if normalizar_resposta(resposta) != resposta_correta:
+        raise ValueError("Resposta de segurança incorreta.")
+
+    # 3. Atualizar a senha
+    senha_hash, salt = hash_password(nova_senha)
+    await db.execute(
+        text("UPDATE profissional SET senha_hash = :senha_hash, salt = :salt WHERE carteira = :carteira"),
+        {
+            "senha_hash": senha_hash,
+            "salt": salt,
+            "carteira": carteira
+        }
+    )
+    await db.commit()
+    return True

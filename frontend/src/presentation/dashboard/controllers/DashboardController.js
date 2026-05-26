@@ -22,6 +22,9 @@ export class DashboardController {
         window.abrirDetalhes = this.abrirDetalhes.bind(this);
         window.descartarAlerta = this.descartarAlerta.bind(this);
         window.toggleAuthMode = this.toggleAuthMode.bind(this);
+        window.toggleAdminRegistration = this.toggleAdminRegistration.bind(this);
+        window.obterPerguntaSeguranca = this.obterPerguntaSeguranca.bind(this);
+        window.redefinirSenha = this.redefinirSenha.bind(this);
         window.criarConta = this.criarConta.bind(this);
         window.fazerLogout = this.fazerLogout.bind(this);
         window.ordenarPor = this.ordenarPor.bind(this);
@@ -427,28 +430,63 @@ export class DashboardController {
     }
 
     toggleAuthMode(mode) {
+        document.getElementById('form-login').style.display = 'none';
+        document.getElementById('form-register').style.display = 'none';
+        document.getElementById('form-recovery').style.display = 'none';
+        
         if (mode === 'register') {
-            document.getElementById('form-login').style.display = 'none';
             document.getElementById('form-register').style.display = 'block';
             document.getElementById('reg-error').style.display = 'none';
+            const regIsAdmin = document.getElementById('reg-is-admin');
+            if (regIsAdmin) regIsAdmin.checked = false;
+            this.toggleAdminRegistration(false);
+        } else if (mode === 'recovery') {
+            document.getElementById('form-recovery').style.display = 'block';
+            document.getElementById('rec-error').style.display = 'none';
+            document.getElementById('rec-success').style.display = 'none';
+            document.getElementById('recovery-step-1').style.display = 'block';
+            document.getElementById('recovery-step-2').style.display = 'none';
+            document.getElementById('rec-id').value = '';
+            document.getElementById('rec-resposta').value = '';
+            document.getElementById('rec-nova-senha').value = '';
         } else {
-            document.getElementById('form-register').style.display = 'none';
             document.getElementById('form-login').style.display = 'block';
             document.getElementById('login-error').style.display = 'none';
         }
     }
 
-    validarCarteiraProfissional(carteirinha) {
-    const credencial = carteirinha.trim().toUpperCase();
+    toggleAdminRegistration(checked) {
+        const regIdInput = document.getElementById('reg-id');
+        if (regIdInput) {
+            const group = regIdInput.parentElement;
+            const groupLabel = group.querySelector('label');
+            if (groupLabel) {
+                groupLabel.innerHTML = checked 
+                    ? "Identificador do Administrador <strong>*</strong> (ex: admin_joao)" 
+                    : "Número da Carteirinha (CRM/COREN) <strong>*</strong>";
+            }
+            regIdInput.placeholder = checked
+                ? "Ex: admin_hospital"
+                : "Ex: CRM/SP 123456";
+        }
+    }
 
-    // Regex CRM: Exige 'CRM/' seguido de 2 letras da UF, espaço e números (Ex: CRM/SP 123456)
-    const regexCRM = /^CRM\/[A-Z]{2}\s\d+$/;
-    
-    // Regex COREN: Exige 'COREN-' seguido de 2 letras da UF, espaço, números, hífen e a sigla da categoria (Ex: COREN-SP 123456-ENF)
-    const regexCOREN = /^COREN-[A-Z]{2}\s\d+-[A-Z]{2,3}$/;
+    validarCarteiraProfissional(carteirinha, isAdmin = false) {
+        const credencial = carteirinha.trim().toUpperCase();
 
-    return regexCRM.test(credencial) || regexCOREN.test(credencial);
-}
+        // Se for cadastrado como administrador ou o login começar com "ADMIN", ignora a validação do CRM/COREN
+        if (isAdmin || credencial.startsWith('ADMIN')) {
+            return credencial.length >= 4; // Exige pelo menos 4 caracteres
+        }
+
+        // Regex CRM: Exige 'CRM/' seguido de 2 letras da UF, espaço e números (Ex: CRM/SP 123456)
+        const regexCRM = /^CRM\/[A-Z]{2}\s\d+$/;
+        
+        // Regex COREN: Exige 'COREN-' seguido de 2 letras da UF, espaço, números, hífen e a sigla da categoria (Ex: COREN-SP 123456-ENF)
+        const regexCOREN = /^COREN-[A-Z]{2}\s\d+-[A-Z]{2,3}$/;
+
+        return regexCRM.test(credencial) || regexCOREN.test(credencial);
+    }
 
     validarSenha(senha) {
         if (senha.length < 8) {
@@ -458,12 +496,7 @@ export class DashboardController {
             return "A senha deve conter pelo menos uma letra maiúscula.";
         }
         if (!/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôûÂÊÎÔÛãõÃÕçÇ\s]/.test(senha)) {
-            return "A senha deve conter pelo menos um caractere especial (ex: !, @, #, $, %, etc.).";
-        }
-        return null;
-    }
-
-    async fazerLogin() {
+            return "A senha deve conter pelo men    async fazerLogin() {
         const id = document.getElementById('login-id').value.trim();
         const senha = document.getElementById('login-senha').value.trim();
         const errorEl = document.getElementById('login-error');
@@ -474,9 +507,8 @@ export class DashboardController {
             return;
         }
 
-        // VALIDAÇÃO ADICIONADA AQUI:
         if (!this.validarCarteiraProfissional(id)) {
-            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000' ou 'COREN-XX 000000-SIGLA'.";
+            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000', 'COREN-XX 000000-SIGLA' ou um identificador admin.";
             errorEl.style.display = 'block';
             return;
         }
@@ -533,17 +565,21 @@ export class DashboardController {
         const nome = document.getElementById('reg-nome').value.trim();
         const id = document.getElementById('reg-id').value.trim();
         const senha = document.getElementById('reg-senha').value.trim();
+        const pergunta = document.getElementById('reg-pergunta').value;
+        const resposta = document.getElementById('reg-resposta').value.trim();
+        const isAdmin = document.getElementById('reg-is-admin').checked;
         const errorEl = document.getElementById('reg-error');
         
-        if(nome === '' || id === '' || senha === '') {
-            errorEl.textContent = 'Preencha todos os campos!';
+        if(nome === '' || id === '' || senha === '' || pergunta === '' || resposta === '') {
+            errorEl.textContent = 'Preencha todos os campos obrigatórios!';
             errorEl.style.display = 'block';
             return;
         }
 
-        // VALIDAÇÃO ADICIONADA AQUI:
-        if (!this.validarCarteiraProfissional(id)) {
-            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000' ou 'COREN-XX 000000-SIGLA'.";
+        if (!this.validarCarteiraProfissional(id, isAdmin)) {
+            errorEl.textContent = isAdmin
+                ? "Identificador de administrador inválido! Deve conter pelo menos 4 caracteres."
+                : "Formato inválido! Use 'CRM/XX 000000' ou 'COREN-XX 000000-SIGLA'.";
             errorEl.style.display = 'block';
             return;
         }
@@ -559,7 +595,14 @@ export class DashboardController {
             const response = await fetch(`${API_BASE_URL}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome: nome, carteira: id, senha: senha })
+                body: JSON.stringify({ 
+                    nome: nome, 
+                    carteira: id, 
+                    senha: senha,
+                    pergunta_seguranca: pergunta,
+                    resposta_seguranca: resposta,
+                    is_admin: isAdmin
+                })
             });
             
             const data = await response.json();
@@ -576,6 +619,98 @@ export class DashboardController {
         } catch (error) {
             console.error(error);
             errorEl.textContent = 'Erro de conexão com o servidor.';
+            errorEl.style.display = 'block';
+        }
+    }
+
+    async obterPerguntaSeguranca() {
+        const id = document.getElementById('rec-id').value.trim();
+        const errorEl = document.getElementById('rec-error');
+        
+        if (id === '') {
+            errorEl.textContent = 'Preencha o CRM/COREN ou usuário admin!';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/recovery-question?carteira=${id}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                errorEl.style.display = 'none';
+                document.getElementById('rec-pergunta-texto').textContent = data.pergunta;
+                document.getElementById('recovery-step-1').style.display = 'none';
+                document.getElementById('recovery-step-2').style.display = 'block';
+            } else {
+                errorEl.textContent = data.detail || 'Não foi possível encontrar a pergunta de segurança para essa conta.';
+                errorEl.style.display = 'block';
+            }
+        } catch (error) {
+            console.error(error);
+            errorEl.textContent = 'Erro de conexão com o servidor.';
+            errorEl.style.display = 'block';
+        }
+    }
+
+    async redefinirSenha() {
+        const id = document.getElementById('rec-id').value.trim();
+        const resposta = document.getElementById('rec-resposta').value.trim();
+        const novaSenha = document.getElementById('rec-nova-senha').value.trim();
+        const errorEl = document.getElementById('rec-error');
+        const successEl = document.getElementById('rec-success');
+        
+        if (resposta === '' || novaSenha === '') {
+            errorEl.textContent = 'Preencha todos os campos!';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        // Validação dos critérios de força da nova senha
+        const erroSenha = this.validarSenha(novaSenha);
+        if (erroSenha) {
+            errorEl.textContent = erroSenha;
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/auth/recover-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    carteira: id,
+                    resposta: resposta,
+                    nova_senha: novaSenha
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                errorEl.style.display = 'none';
+                successEl.textContent = 'Senha redefinida com sucesso! Redirecionando...';
+                successEl.style.display = 'block';
+                
+                setTimeout(() => {
+                    this.toggleAuthMode('login');
+                    document.getElementById('login-id').value = id;
+                    document.getElementById('login-senha').value = '';
+                }, 2000);
+            } else {
+                errorEl.textContent = data.detail || 'Resposta de segurança incorreta ou erro ao redefinir.';
+                errorEl.style.display = 'block';
+            }
+        } catch (error) {
+            console.error(error);
+            errorEl.textContent = 'Erro de conexão com o servidor.';
+            errorEl.style.display = 'block';
+        }
+    }Content = 'Erro de conexão com o servidor.';
             errorEl.style.display = 'block';
         }
     }
