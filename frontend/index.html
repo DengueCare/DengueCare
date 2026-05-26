@@ -441,7 +441,7 @@
             </a>
 
             <!-- CARD 2: CHATBOT TRIAGEM (TELEGRAM INTEGRATION) -->
-            <a href="javascript:void(0)" onclick="openTelegramModal(event)" class="card">
+            <a href="javascript:void(0)" onclick="handleChatbotClick(event)" class="card">
                 <div class="card-icon">💬</div>
                 <h2>Chatbot de Triagem</h2>
                 <p>Simulação e interface do bot de telemonitoramento diário de sintomas para pacientes no Telegram.</p>
@@ -470,7 +470,7 @@
                     <p>Ao clicar abaixo, o seu dispositivo tentará iniciar o aplicativo do Telegram para abrir o chat diretamente.</p>
                 </div>
                 
-                <a href="tg://resolve?domain=DengueCareBot" class="btn-telegram-primary" onclick="handleTelegramRedirect(event)">
+                <a href="tg://resolve?domain=DengueCareBot" id="modal-telegram-primary-btn" class="btn-telegram-primary" onclick="handleTelegramRedirect(event)">
                     <span>🚀</span> Iniciar no Telegram
                 </a>
                 
@@ -496,25 +496,48 @@
     </footer>
 
     <script>
-        function openTelegramModal(event) {
+        // Função para detectar se o usuário está em dispositivo móvel
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        function handleChatbotClick(event) {
             if (event) event.preventDefault();
+
+            if (isMobileDevice()) {
+                // No Celular: Tenta abrir o app nativo do Telegram diretamente
+                window.location.href = "tg://resolve?domain=DengueCareBot";
+
+                // Se o usuário NÃO tiver o app, a página continuará visível.
+                // Após 1.5s, se o app não abriu, exibe o modal explicativo/alerta de fallback
+                setTimeout(() => {
+                    if (!document.hidden) {
+                        openTelegramModal();
+                    }
+                }, 1500);
+            } else {
+                // No Computador/Notebook: Abre o modal diretamente para evitar conflitos de protocolo
+                openTelegramModal();
+            }
+        }
+
+        function openTelegramModal() {
             const modal = document.getElementById('telegram-modal');
+            const primaryBtn = document.getElementById('modal-telegram-primary-btn');
+
+            // Ajusta o link principal do modal dependendo da plataforma
+            if (isMobileDevice()) {
+                primaryBtn.href = "tg://resolve?domain=DengueCareBot";
+                primaryBtn.target = "_self";
+            } else {
+                primaryBtn.href = "https://t.me/DengueCareBot";
+                primaryBtn.target = "_blank";
+            }
+
             modal.style.display = 'flex';
-            // Força o reflow para aplicar animações de transição
+            // Força o reflow para aplicar as transições CSS
             void modal.offsetHeight;
             modal.classList.add('active');
-
-            // Tentativa de abertura silenciosa em segundo plano via protocolo customizado
-            // Se o app já estiver instalado, ele abre imediatamente!
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = 'tg://resolve?domain=DengueCareBot';
-            document.body.appendChild(iframe);
-            setTimeout(() => {
-                if (document.body.contains(iframe)) {
-                    document.body.removeChild(iframe);
-                }
-            }, 1000);
         }
 
         function closeTelegramModal() {
@@ -526,8 +549,12 @@
         }
 
         function handleTelegramRedirect(event) {
-            // Tenta abrir o app via link direto
-            window.location.href = "tg://resolve?domain=DengueCareBot";
+            // Se for mobile, tentamos abrir via protocolo nativo ao clicar no botão do modal
+            if (isMobileDevice()) {
+                event.preventDefault();
+                window.location.href = "tg://resolve?domain=DengueCareBot";
+            }
+            // Se for desktop, o link já está com o href correto da página web do Telegram em target="_blank"
         }
 
         // Fecha o modal ao clicar na área escura (overlay)
