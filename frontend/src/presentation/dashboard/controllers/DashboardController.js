@@ -59,7 +59,10 @@ export class DashboardController {
         await this.carregarEstatisticas();
         await this.carregarTabelaPacientes();
         // Polling para tempo real a cada 10 segundos
-        setInterval(() => this.carregarTabelaPacientes(true), 10000);
+        setInterval(async () => {
+            await this.carregarTabelaPacientes(true);
+            await this.carregarEstatisticas();
+        }, 10000);
     }
 
     async carregarEstatisticas() {
@@ -68,12 +71,44 @@ export class DashboardController {
             const stats = await repo.getDashboardStats();
             if (!stats) return;
 
-            const cards = document.querySelectorAll('.stat-card h2');
-            if (cards.length >= 4) {
-                cards[0].textContent = stats.total_pacientes ?? 0;
-                cards[1].textContent = stats.alto_risco ?? 0;
-                cards[2].textContent = stats.tempo_espera ?? '45 min';
-                cards[3].textContent = stats.admissoes_hoje ?? 0;
+            const totalEl = document.getElementById('metric-total');
+            const altoRiscoEl = document.getElementById('metric-alto-risco');
+            const admissoesEl = document.getElementById('metric-admissoes');
+
+            if (totalEl) totalEl.textContent = stats.total_pacientes ?? 0;
+            if (altoRiscoEl) altoRiscoEl.textContent = stats.alto_risco ?? 0;
+            if (admissoesEl) admissoesEl.textContent = stats.admissoes_hoje ?? 0;
+
+            const trendAltoRiscoEl = document.getElementById('trend-alto-risco');
+            if (trendAltoRiscoEl && stats.alto_risco_delta !== undefined) {
+                const delta = stats.alto_risco_delta;
+                if (delta > 0) {
+                    trendAltoRiscoEl.textContent = `▲ +${delta} hoje`;
+                    trendAltoRiscoEl.className = 'stat-trend red';
+                    trendAltoRiscoEl.style.display = 'inline-block';
+                } else if (delta < 0) {
+                    trendAltoRiscoEl.textContent = `▼ ${delta} hoje`;
+                    trendAltoRiscoEl.className = 'stat-trend green';
+                    trendAltoRiscoEl.style.display = 'inline-block';
+                } else {
+                    trendAltoRiscoEl.style.display = 'none';
+                }
+            }
+
+            const trendAdmissoesEl = document.getElementById('trend-admissoes');
+            if (trendAdmissoesEl && stats.admissoes_delta !== undefined) {
+                const delta = stats.admissoes_delta;
+                if (delta > 0) {
+                    trendAdmissoesEl.textContent = `▲ +${delta} em relação a ontem`;
+                    trendAdmissoesEl.className = 'stat-trend green';
+                    trendAdmissoesEl.style.display = 'inline-block';
+                } else if (delta < 0) {
+                    trendAdmissoesEl.textContent = `▼ ${delta} em relação a ontem`;
+                    trendAdmissoesEl.className = 'stat-trend red';
+                    trendAdmissoesEl.style.display = 'inline-block';
+                } else {
+                    trendAdmissoesEl.style.display = 'none';
+                }
             }
         } catch (error) {
             console.error('Erro ao carregar estatísticas do dashboard:', error);
@@ -1093,15 +1128,17 @@ export class DashboardController {
                 if(res && res.success) {
                     alert("Dados do paciente atualizados com sucesso!");
                     this.fecharModalCadastro();
-                    this.abrirDetalhes(idEdicao); // recarrega tela de detalhes
-                    this.carregarTabelaPacientes(); // recarrega fila de fundo
+                    await this.abrirDetalhes(idEdicao); // recarrega tela de detalhes
+                    await this.carregarTabelaPacientes(); // recarrega fila de fundo
+                    await this.carregarEstatisticas(); // recarrega estatísticas do dashboard
                 }
             } else {
                 const res = await this.repo.createPatient(reqData);
                 if(res && res.success) {
                     alert("Paciente cadastrado e monitoramento iniciado!");
                     this.fecharModalCadastro();
-                    this.carregarTabelaPacientes(); // recarrega fila
+                    await this.carregarTabelaPacientes(); // recarrega fila
+                    await this.carregarEstatisticas(); // recarrega estatísticas do dashboard
                 }
             }
         } catch(error) {
@@ -1126,7 +1163,8 @@ export class DashboardController {
                 alert("Paciente inativado. O administrador poderá reativá-lo futuramente.");
                 document.getElementById('modal-inativar').style.display = 'none';
                 this.navegar('pacientes'); // volta para a fila
-                this.carregarTabelaPacientes(); // recarrega
+                await this.carregarTabelaPacientes(); // recarrega
+                await this.carregarEstatisticas(); // recarrega estatísticas do dashboard
             }
         } catch(error) {
             console.error(error);
