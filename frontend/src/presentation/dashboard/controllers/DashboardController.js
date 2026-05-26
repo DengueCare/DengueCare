@@ -471,19 +471,8 @@ export class DashboardController {
         }
     }
 
-<<<<<<< HEAD
     validarCarteiraProfissional(carteirinha, isAdmin = false) {
         const credencial = carteirinha.trim().toUpperCase();
-=======
-    // Libera acesso imediato se a conta for de administrador
-    if (credencial === 'ADMIN') return true;
-
-    // Regex CRM: Exige 'CRM/' seguido de 2 letras da UF, espaço e números (Ex: CRM/SP 123456)
-    const regexCRM = /^CRM\/[A-Z]{2}\s\d+$/;
-    
-    // Regex COREN: Exige 'COREN-' seguido de 2 letras da UF, espaço, números, hífen e a sigla da categoria (Ex: COREN-SP 123456-ENF)
-    const regexCOREN = /^COREN-[A-Z]{2}\s\d+-[A-Z]{2,3}$/;
->>>>>>> 682da7e7e9a1b77cc3ededafd39426120aff2561
 
         // Se for cadastrado como administrador ou o login começar com "ADMIN", ignora a validação do CRM/COREN
         if (isAdmin || credencial.startsWith('ADMIN')) {
