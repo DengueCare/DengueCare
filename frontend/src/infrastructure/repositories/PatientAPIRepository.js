@@ -166,4 +166,76 @@ export class PatientAPIRepository {
             return null;
         }
     }
+
+    async getInactivePatients() {
+        try {
+            const response = await fetch(`${this.baseUrl}/patients/inactive`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const res = await response.json();
+            return res.data;
+        } catch (error) {
+            console.error('Erro ao buscar pacientes inativos:', error);
+            throw error;
+        }
+    }
+
+    async reactivatePatient(id) {
+        try {
+            const response = await fetch(`${this.baseUrl}/patients/${id}/reactivate`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Erro ao reativar paciente:', error);
+            throw error;
+        }
+    }
+
+    async getAllProfessionals() {
+        try {
+            const response = await fetch(`${this.baseUrl}/auth/professionals`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const res = await response.json();
+            return res.data;
+        } catch (error) {
+            console.error('Erro ao buscar profissionais:', error);
+            throw error;
+        }
+    }
+
+    async reactivateProfessional(carteira) {
+        try {
+            const response = await fetch(`${this.baseUrl}/auth/professionals/${carteira}/reactivate`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Erro ao reativar profissional:', error);
+            throw error;
+        }
+    }
+
+    async toggleAdminProfessional(carteira) {
+        try {
+            const response = await fetch(`${this.baseUrl}/auth/professionals/${carteira}/toggle-admin`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Erro ao alterar permissão de administrador do profissional:', error);
+            throw error;
+        }
+    }
 }

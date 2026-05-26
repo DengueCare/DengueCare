@@ -143,3 +143,31 @@ async def atualizar_paciente(db: AsyncSession, paciente_id: int, **dados) -> boo
     except Exception as e:
         await db.rollback()
         return False
+
+async def listar_pacientes_inativos(db: AsyncSession) -> list[dict]:
+    """
+    Retorna todos os pacientes inativados.
+    """
+    try:
+        result = await db.execute(text("SELECT id, nm_usuario, nr_carteira, status, motivo_inativacao, telefone FROM paciente WHERE status = 'inativo'"))
+        rows = result.fetchall()
+        return [dict(row._mapping) for row in rows]
+    except Exception as e:
+        logger.error(f"Erro ao listar pacientes inativos: {e}")
+        raise
+
+async def reativar_paciente(db: AsyncSession, paciente_id: int) -> bool:
+    """
+    Reativa um paciente inativado.
+    """
+    try:
+        result = await db.execute(
+            text("UPDATE paciente SET status = 'ativo', motivo_inativacao = NULL WHERE id = :id RETURNING id"),
+            {"id": paciente_id}
+        )
+        await db.commit()
+        return result.fetchone() is not None
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Erro ao reativar paciente {paciente_id}: {e}")
+        return False
