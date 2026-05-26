@@ -84,7 +84,10 @@
                 <input type="text" id="login-id" placeholder="Ex: 123456" autocomplete="off" onkeypress="if(event.key === 'Enter') window.fazerLogin()">
             </div>
             <div class="input-group">
-                <label>Senha</label>
+                <label style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Senha</span>
+                    <a href="#" onclick="window.toggleAuthMode('recovery')" style="color: var(--primary-blue); text-decoration: none; font-size: 11px; font-weight: bold;">Esqueci minha senha</a>
+                </label>
                 <input type="password" id="login-senha" placeholder="Sua senha" autocomplete="off" onkeypress="if(event.key === 'Enter') window.fazerLogin()">
             </div>
             
@@ -107,6 +110,10 @@
                 <label>Nome Completo</label>
                 <input type="text" id="reg-nome" placeholder="Ex: Dr. João Pedro" autocomplete="off" onkeypress="if(event.key === 'Enter') window.criarConta()">
             </div>
+            <div class="input-group" style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                <input type="checkbox" id="reg-is-admin" onchange="window.toggleAdminRegistration(this.checked)" style="width: auto; cursor: pointer;">
+                <label for="reg-is-admin" style="margin-bottom: 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted);">Cadastrar como Administrador</label>
+            </div>
             <div class="input-group">
                 <label>Número da Carteirinha (CRM/COREN)</label>
                 <input type="text" id="reg-id" placeholder="Ex: 123456" autocomplete="off" onkeypress="if(event.key === 'Enter') window.criarConta()">
@@ -115,12 +122,65 @@
                 <label>Criar Senha</label>
                 <input type="password" id="reg-senha" placeholder="Crie uma senha segura" autocomplete="off" onkeypress="if(event.key === 'Enter') window.criarConta()">
             </div>
+            <div class="input-group">
+                <label>Pergunta de Segurança <strong>*</strong></label>
+                <select id="reg-pergunta">
+                    <option value="" disabled selected>Selecione uma pergunta de segurança...</option>
+                    <option value="Qual o seu time de futebol?">Qual o seu time de futebol?</option>
+                    <option value="Qual o nome do seu animal de estimação?">Qual o nome do seu animal de estimação?</option>
+                    <option value="Qual o nome de solteiro da sua mãe?">Qual o nome de solteiro da sua mãe?</option>
+                    <option value="Qual a sua comida preferida?">Qual a sua comida preferida?</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Resposta de Segurança <strong>*</strong></label>
+                <input type="text" id="reg-resposta" placeholder="Sua resposta pessoal" autocomplete="off" onkeypress="if(event.key === 'Enter') window.criarConta()">
+            </div>
             
             <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="window.criarConta()">Finalizar Cadastro</button>
             <p id="reg-error" style="color: red; font-size: 13px; display: none; margin-top: 10px; text-align: center;"></p>
             
             <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #666;">
                 Já tem uma conta? <a href="#" onclick="window.toggleAuthMode('login')" style="color: var(--primary-blue); text-decoration: none; font-weight: bold;">Faça Login</a>
+            </p>
+        </div>
+
+        <div class="login-box" id="form-recovery" style="display: none;">
+            <div class="logo-icon" style="margin: 0 auto 20px; width: 80px; height: 80px; display: flex; justify-content: center; align-items: center;">
+                <img src="../../../assets/logo.png" alt="Logo DengueCare" style="max-width: 100%; max-height: 100%;">
+            </div>
+            <h2>Recuperar Senha</h2>
+            <p style="color: #666; margin-bottom: 25px; font-size: 14px;">Responda à sua pergunta de segurança para redefinir</p>
+
+            <div id="recovery-step-1">
+                <div class="input-group">
+                    <label>Número da Carteirinha ou Identificador Admin <strong>*</strong></label>
+                    <input type="text" id="rec-id" placeholder="Ex: CRM/SP 123456 ou admin_hospital" autocomplete="off" onkeypress="if(event.key === 'Enter') window.obterPerguntaSeguranca()">
+                </div>
+                <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="window.obterPerguntaSeguranca()">Verificar Conta</button>
+            </div>
+
+            <div id="recovery-step-2" style="display: none;">
+                <div class="input-group">
+                    <label>Pergunta de Segurança:</label>
+                    <strong id="rec-pergunta-texto" style="font-size: 14px; color: var(--primary-blue); display: block; margin-top: 5px; margin-bottom: 10px;"></strong>
+                </div>
+                <div class="input-group">
+                    <label>Sua Resposta <strong>*</strong></label>
+                    <input type="text" id="rec-resposta" placeholder="Digite sua resposta" autocomplete="off" onkeypress="if(event.key === 'Enter') window.redefinirSenha()">
+                </div>
+                <div class="input-group">
+                    <label>Nova Senha Forte <strong>*</strong></label>
+                    <input type="password" id="rec-nova-senha" placeholder="Mínimo 8 caracteres, 1 maiúscula, 1 especial" autocomplete="off" onkeypress="if(event.key === 'Enter') window.redefinirSenha()">
+                </div>
+                <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="window.redefinirSenha()">Redefinir Senha</button>
+            </div>
+
+            <p id="rec-error" style="color: red; font-size: 13px; display: none; margin-top: 10px; text-align: center;"></p>
+            <p id="rec-success" style="color: var(--green-alert); font-size: 13px; display: none; margin-top: 10px; text-align: center;"></p>
+
+            <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #666;">
+                Lembrou a senha? <a href="#" onclick="window.toggleAuthMode('login')" style="color: var(--primary-blue); text-decoration: none; font-weight: bold;">Faça Login</a>
             </p>
         </div>
     </div>

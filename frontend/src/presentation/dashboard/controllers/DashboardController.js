@@ -496,7 +496,12 @@ export class DashboardController {
             return "A senha deve conter pelo menos uma letra maiúscula.";
         }
         if (!/[^a-zA-Z0-9áéíóúÁÉÍÓÚâêîôûÂÊÎÔÛãõÃÕçÇ\s]/.test(senha)) {
-            return "A senha deve conter pelo men    async fazerLogin() {
+            return "A senha deve conter pelo menos um caractere especial.";
+        }
+        return null;
+    }
+
+    async fazerLogin() {
         const id = document.getElementById('login-id').value.trim();
         const senha = document.getElementById('login-senha').value.trim();
         const errorEl = document.getElementById('login-error');
@@ -507,8 +512,8 @@ export class DashboardController {
             return;
         }
 
-        if (!this.validarCarteiraProfissional(id)) {
-            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000', 'COREN-XX 000000-SIGLA' ou um identificador admin.";
+        if (!this.validarCarteiraProfissional(id) && !this.validarCarteiraProfissional(id, true)) {
+            errorEl.textContent = "Formato inválido! Use 'CRM/XX 000000', 'COREN-XX 000000-SIGLA' ou seu identificador admin.";
             errorEl.style.display = 'block';
             return;
         }
@@ -708,9 +713,6 @@ export class DashboardController {
         } catch (error) {
             console.error(error);
             errorEl.textContent = 'Erro de conexão com o servidor.';
-            errorEl.style.display = 'block';
-        }
-    }Content = 'Erro de conexão com o servidor.';
             errorEl.style.display = 'block';
         }
     }
