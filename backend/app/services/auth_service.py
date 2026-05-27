@@ -289,3 +289,28 @@ async def recuperar_senha_por_pergunta(db: AsyncSession, carteira: str, resposta
     )
     await db.commit()
     return True
+
+async def toggle_admin_profissional(db: AsyncSession, carteira: str) -> dict | None:
+    """
+    Alterna a permissão de administrador de um profissional (toggle).
+    Se for admin, vira não-admin. Se não for, vira admin.
+    """
+    result = await db.execute(
+        text("SELECT id, nome, carteira, ubs, status, is_admin, dt_criacao FROM profissional WHERE carteira = :carteira"),
+        {"carteira": carteira}
+    )
+    row = result.fetchone()
+    if not row:
+        return None
+
+    prof = dict(row._mapping)
+    novo_status = not prof["is_admin"]
+
+    await db.execute(
+        text("UPDATE profissional SET is_admin = :admin WHERE carteira = :carteira"),
+        {"admin": novo_status, "carteira": carteira}
+    )
+    await db.commit()
+
+    prof["is_admin"] = novo_status
+    return prof
