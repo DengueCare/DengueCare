@@ -155,3 +155,19 @@ async def recover_password(req: RecoverPasswordRequest, db: AsyncSession = Depen
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro interno ao redefinir senha: {str(e)}")
+
+class ToggleAdminRequest(BaseModel):
+    carteira: str
+    is_admin: bool
+
+@router.patch("/toggle-admin")
+async def toggle_admin_profile(req: ToggleAdminRequest, db: AsyncSession = Depends(get_db)):
+    from app.services.auth_service import alterar_status_admin
+    try:
+        success = await alterar_status_admin(db, req.carteira, req.is_admin)
+        if success:
+            return {"success": True, "message": "Nível de acesso atualizado com sucesso"}
+        else:
+            raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro interno ao alterar permissões: {str(e)}")

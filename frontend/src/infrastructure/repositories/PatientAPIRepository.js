@@ -225,17 +225,18 @@ export class PatientAPIRepository {
         }
     }
 
-    async toggleAdminProfessional(carteira) {
-        try {
-            const response = await fetch(`${this.baseUrl}/auth/professionals/${carteira}/toggle-admin`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('Erro ao alterar permissão de administrador do profissional:', error);
-            throw error;
-        }
+    async toggleAdminProfessional(carteira, isAdmin) {
+    try {
+        const response = await fetch(`${this.baseUrl}/auth/toggle-admin`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ carteira: carteira, is_admin: isAdmin })
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Erro ao alterar permissão de administrador do profissional:', error);
+        throw error;
     }
+}
 }
