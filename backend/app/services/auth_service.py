@@ -218,20 +218,21 @@ async def reativar_profissional(db: AsyncSession, carteira: str) -> bool:
 async def alterar_status_admin(db: AsyncSession, carteira: str, is_admin: bool) -> bool:
     """
     Altera a permissão de administrador de um profissional médico no banco de dados.
+    Aceita tanto o número da carteira quanto o ID interno (Primary Key).
     """
     try:
-        # Altere "is_admin" para o nome exato da sua coluna no Supabase, caso seja diferente
         result = await db.execute(
             text("""
                 UPDATE profissional 
                 SET is_admin = :admin 
-                WHERE nr_carteira = :carteira
+                WHERE carteira = :carteira 
+                   OR id::text = :carteira
             """),
-            {"admin": is_admin, "carteira": carteira}
+            {"admin": is_admin, "carteira": str(carteira)}
         )
         await db.commit()
         
-        # Verifica se alguma linha foi afetada (se o profissional realmente existe)
+        # Verifica se alguma linha foi afetada
         if result.rowcount > 0:
             return True
         return False
