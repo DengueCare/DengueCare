@@ -11,28 +11,31 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
     Retorna métricas consolidadas em tempo real do banco de dados para os cards do topo do Dashboard.
     """
     try:
-        # 1. Total de Pacientes cadastrados no banco
-        res_total = await db.execute(text("SELECT COUNT(*) FROM paciente"))
+        # 1. Total de Pacientes cadastrados no banco com status ativo
+        res_total = await db.execute(text("SELECT COUNT(*) FROM paciente WHERE status = 'ativo'"))
         total_pacientes = res_total.scalar() or 0
         
-        # 2. Pacientes em Alto Risco hoje (última triagem classificada como C ou D)
+        # 2. Pacientes em Alto Risco hoje (última triagem classificada como C ou D e ativo)
         query_alto_risco_hoje = """
             SELECT COUNT(*) FROM (
-                SELECT DISTINCT ON (id) grupo_risco
-                FROM atendimento_paciente
-                ORDER BY id, nr_atendimento DESC
+                SELECT DISTINCT ON (ap.id) ap.grupo_risco
+                FROM atendimento_paciente ap
+                JOIN paciente p ON ap.id = p.id
+                WHERE p.status = 'ativo'
+                ORDER BY ap.id, ap.nr_atendimento DESC
             ) latests WHERE grupo_risco IN ('C', 'D')
         """
         res_alto_hoje = await db.execute(text(query_alto_risco_hoje))
         alto_risco_hoje = res_alto_hoje.scalar() or 0
         
-        # 2.1 Pacientes em Alto Risco até ontem
+        # 2.1 Pacientes em Alto Risco até ontem (ativos)
         query_alto_risco_ontem = """
             SELECT COUNT(*) FROM (
-                SELECT DISTINCT ON (id) grupo_risco
-                FROM atendimento_paciente
-                WHERE dt_inicio <= CURRENT_DATE - 1
-                ORDER BY id, nr_atendimento DESC
+                SELECT DISTINCT ON (ap.id) ap.grupo_risco
+                FROM atendimento_paciente ap
+                JOIN paciente p ON ap.id = p.id
+                WHERE p.status = 'ativo' AND ap.dt_inicio <= CURRENT_DATE - 1
+                ORDER BY ap.id, ap.nr_atendimento DESC
             ) latests WHERE grupo_risco IN ('C', 'D')
         """
         res_alto_ontem = await db.execute(text(query_alto_risco_ontem))
@@ -40,24 +43,26 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
         
         alto_risco_delta = alto_risco_hoje - alto_risco_ontem
         
-        # 3. Admissões de Hoje (novos pacientes cadastrados/triados hoje)
+        # 3. Admissões de Hoje (novos pacientes ativos cadastrados/triados hoje)
         query_admissoes_hoje = """
             SELECT COUNT(*) FROM (
                 SELECT p.id, COALESCE(CAST(MIN(ap.dt_inicio) AS DATE), CURRENT_DATE) as dt
                 FROM paciente p
                 LEFT JOIN atendimento_paciente ap ON p.id = ap.id
+                WHERE p.status = 'ativo'
                 GROUP BY p.id
             ) registrations WHERE dt = CURRENT_DATE
         """
         res_hoje = await db.execute(text(query_admissoes_hoje))
         admissoes_hoje = res_hoje.scalar() or 0
         
-        # 3.1 Admissões de Ontem (para calcular variação)
+        # 3.1 Admissões de Ontem (para calcular variação - ativos)
         query_admissoes_ontem = """
             SELECT COUNT(*) FROM (
                 SELECT p.id, COALESCE(CAST(MIN(ap.dt_inicio) AS DATE), CURRENT_DATE) as dt
                 FROM paciente p
                 LEFT JOIN atendimento_paciente ap ON p.id = ap.id
+                WHERE p.status = 'ativo'
                 GROUP BY p.id
             ) registrations WHERE dt = CURRENT_DATE - 1
         """

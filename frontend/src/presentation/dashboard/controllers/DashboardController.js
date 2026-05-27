@@ -123,65 +123,8 @@ export class DashboardController {
     }
 
     atualizarAlertasCriticos(pacientesArray) {
-        const alertBox = document.querySelector('.alert-box');
-        if (!alertBox) return;
-
-        // Filtra pacientes nos grupos C e D
-        const criticos = pacientesArray.filter(p => p.grupoAtual === 'Grupo C' || p.grupoAtual === 'Grupo D');
-
-        // Atualiza a legenda de alerta
-        const alertSub = alertBox.querySelector('.alert-sub');
-        if (alertSub) {
-            alertSub.textContent = criticos.length === 1 
-                ? '1 paciente requer atenção imediata' 
-                : `${criticos.length} pacientes requerem atenção imediata`;
-        }
-
-        // Remove cards de alerta antigos (mantendo o header e sub)
-        const oldCards = alertBox.querySelectorAll('.alert-card');
-        oldCards.forEach(card => card.remove());
-
-        // Se não houver nenhum paciente crítico, exibe feedback positivo
-        if (criticos.length === 0) {
-            const noAlertCard = document.createElement('div');
-            noAlertCard.className = 'alert-card';
-            noAlertCard.style.borderColor = '#e6f4ea';
-            noAlertCard.style.background = '#f4fbf7';
-            noAlertCard.style.pointerEvents = 'none';
-            noAlertCard.innerHTML = `
-                <div style="color: #1e8e3e; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                    <span>✅</span> Sem alertas de urgência ou alto risco no momento.
-                </div>
-            `;
-            alertBox.appendChild(noAlertCard);
-            return;
-        }
-
-        // Renderiza cada paciente crítico
-        criticos.forEach(p => {
-            const card = document.createElement('div');
-            card.className = 'alert-card';
-            card.setAttribute('onclick', `window.abrirDetalhes('${p.id}')`);
-            card.style.cursor = 'pointer';
-            
-            let desc = p.grupoAtual === 'Grupo D' 
-                ? 'Sinais de choque/gravidade máxima detectados. Encaminhamento imediato.' 
-                : 'Sinais de alarme ativos. Requer avaliação prioritária.';
-            
-            if (p.comorbidades && p.comorbidades.length > 0) {
-                desc += ` Comorbidades: ${p.comorbidades.join(', ')}.`;
-            }
-
-            card.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h4>${p.nome}</h4>
-                    <span class="badge ${p.riscoBadge || 'badge-red'}">${p.grupoAtual}</span>
-                </div>
-                <p style="margin-top: 5px;">${desc}</p>
-                <span class="time-ago">Triagem Recente</span>
-            `;
-            alertBox.appendChild(card);
-        });
+        // Delega inteiramente para renderizarAlertas para centralizar lógica e evitar conflitos de DOM concorrente
+        this.renderizarAlertas(pacientesArray);
     }
 
     async carregarTabelaPacientes(isPolling = false) {
@@ -200,6 +143,8 @@ export class DashboardController {
                     const diffTime = Math.abs(new Date() - new Date(p.dt_sin_pri));
                     p.dias = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 }
+                // Garante que o campo grupoAtual esteja mapeado corretamente para o frontend
+                p.grupoAtual = p.grupoAtual || p.riscoTexto || (p.riscoPuro ? 'Grupo ' + p.riscoPuro : '') || 'Grupo A';
                 return p;
             });
 
@@ -315,8 +260,15 @@ export class DashboardController {
         // Atualizar contador
         countLabel.textContent = `${alertas.length} paciente${alertas.length !== 1 ? 's' : ''} requerem atenção imediata`;
 
+        // Se não houver nenhum alerta ativo, exibe o banner verde de sucesso
         if (alertas.length === 0) {
-            container.innerHTML = '<p style="color: #666; font-size: 13px; text-align: center; padding: 20px;">Nenhum alerta crítico no momento.</p>';
+            container.innerHTML = `
+                <div class="alert-card" style="border-color: #e6f4ea; background: #f4fbf7; pointer-events: none; margin-bottom: 0; padding: 15px; border-radius: 8px; border: 1px solid #e6f4ea;">
+                    <div style="color: #1e8e3e; font-weight: 600; display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                        <span>✅</span> Sem alertas de urgência ou alto risco no momento.
+                    </div>
+                </div>
+            `;
             return;
         }
 
@@ -335,19 +287,29 @@ export class DashboardController {
                 }
             }
 
+            // Define descrição do alerta de forma premium e detalhada baseada no grupo (C vs D)
+            let desc = alerta.grupoAtual === 'Grupo D' 
+                ? 'Sinais de choque/gravidade máxima detectados. Encaminhamento imediato.' 
+                : 'Sinais de alarme ativos. Requer avaliação prioritária.';
+            
+            if (alerta.comorbidades && alerta.comorbidades.length > 0) {
+                desc += ` Comorbidades: ${alerta.comorbidades.join(', ')}.`;
+            }
+
             const card = document.createElement('div');
             card.className = 'alert-card';
             card.onclick = () => window.abrirDetalhes(alerta.id);
+            card.style.cursor = 'pointer';
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <h4>${alerta.nome}</h4>
+                    <h4 style="margin: 0; font-size: 14px; color: var(--text-main); font-weight: 600;">${alerta.nome}</h4>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span class="badge ${alerta.riscoBadge}" style="font-size: 11px;">${alerta.riscoTexto}</span>
-                        <span style="color: #999; cursor: pointer; font-size: 16px;" onclick="event.stopPropagation(); window.descartarAlerta('${alerta.id}', '${alerta.dt_ultima_triagem}')" title="Descartar Alerta">✕</span>
+                        <span class="badge ${alerta.riscoBadge || 'badge-red'}" style="font-size: 11px;">${alerta.grupoAtual}</span>
+                        <span style="color: #999; cursor: pointer; font-size: 16px; transition: color 0.2s;" onmouseover="this.style.color='#f44336'" onmouseout="this.style.color='#999'" onclick="event.stopPropagation(); window.descartarAlerta('${alerta.id}', '${alerta.dt_ultima_triagem}')" title="Descartar Alerta">✕</span>
                     </div>
                 </div>
-                <p>O paciente encontra-se em quadro clínico de alto risco (Gravidade ou Piora recente). Requer avaliação médica prioritária.</p>
-                <span class="time-ago">${timeAgo}</span>
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 8px 0;">${desc}</p>
+                <span class="time-ago" style="font-size: 11px; color: #999;">${timeAgo}</span>
             `;
             container.appendChild(card);
         });
