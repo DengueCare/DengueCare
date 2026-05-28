@@ -43,28 +43,22 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
         
         alto_risco_delta = alto_risco_hoje - alto_risco_ontem
         
-        # 3. Admissões de Hoje (novos pacientes ativos cadastrados/triados hoje)
+        # 3. Admissões de Hoje (novos pacientes cadastrados hoje na data local de São Paulo)
         query_admissoes_hoje = """
-            SELECT COUNT(*) FROM (
-                SELECT p.id, COALESCE(CAST(MIN(ap.dt_inicio) AS DATE), CURRENT_DATE) as dt
-                FROM paciente p
-                LEFT JOIN atendimento_paciente ap ON p.id = ap.id
-                WHERE p.status = 'ativo'
-                GROUP BY p.id
-            ) registrations WHERE dt = CURRENT_DATE
+            SELECT COUNT(*) 
+            FROM paciente 
+            WHERE status = 'ativo' 
+              AND timezone('America/Sao_Paulo', dt_cadastro)::date = timezone('America/Sao_Paulo', CURRENT_TIMESTAMP)::date
         """
         res_hoje = await db.execute(text(query_admissoes_hoje))
         admissoes_hoje = res_hoje.scalar() or 0
         
-        # 3.1 Admissões de Ontem (para calcular variação - ativos)
+        # 3.1 Admissões de Ontem (novos pacientes cadastrados ontem na data local)
         query_admissoes_ontem = """
-            SELECT COUNT(*) FROM (
-                SELECT p.id, COALESCE(CAST(MIN(ap.dt_inicio) AS DATE), CURRENT_DATE) as dt
-                FROM paciente p
-                LEFT JOIN atendimento_paciente ap ON p.id = ap.id
-                WHERE p.status = 'ativo'
-                GROUP BY p.id
-            ) registrations WHERE dt = CURRENT_DATE - 1
+            SELECT COUNT(*) 
+            FROM paciente 
+            WHERE status = 'ativo' 
+              AND timezone('America/Sao_Paulo', dt_cadastro)::date = timezone('America/Sao_Paulo', CURRENT_TIMESTAMP)::date - 1
         """
         res_ontem = await db.execute(text(query_admissoes_ontem))
         admissoes_ontem = res_ontem.scalar() or 0
@@ -230,14 +224,10 @@ async def get_dashboard_admissions(days: int = 30, db: AsyncSession = Depends(ge
     """
     try:
         query = """
-            SELECT dt, COUNT(*) as count
-            FROM (
-                SELECT p.id, COALESCE(CAST(MIN(ap.dt_inicio) AS DATE), CURRENT_DATE) as dt
-                FROM paciente p
-                LEFT JOIN atendimento_paciente ap ON p.id = ap.id
-                GROUP BY p.id
-            ) registrations
-            WHERE dt >= CURRENT_DATE - CAST(:days || ' days' AS INTERVAL)
+            SELECT timezone('America/Sao_Paulo', dt_cadastro)::date as dt, COUNT(*) as count
+            FROM paciente
+            WHERE status = 'ativo'
+              AND timezone('America/Sao_Paulo', dt_cadastro)::date >= timezone('America/Sao_Paulo', CURRENT_TIMESTAMP)::date - (:days * INTERVAL '1 day')
             GROUP BY dt
             ORDER BY dt ASC
         """
