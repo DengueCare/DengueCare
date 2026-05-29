@@ -1291,9 +1291,22 @@ export class DashboardController {
 
     async submeterPaciente() {
         const idEdicao = document.getElementById('paciente-edit-id').value;
+
+        // Campo obrigatório apenas no cadastro (POST); no update pode ficar vazio
+        const nrCarteira = document.getElementById('cad-carteira')?.value?.trim() || '';
+        if (!idEdicao && nrCarteira === '') {
+            alert('Informe o número da carteira do paciente.');
+            return;
+        }
+        if (nrCarteira !== '' && !/^\d+$/.test(nrCarteira)) {
+            alert('O número da carteira deve conter apenas dígitos.');
+            return;
+        }
+
         const reqData = {
             nome: document.getElementById('cad-nome').value,
             telefone: document.getElementById('cad-tel').value,
+            nr_carteira: nrCarteira,
             dt_sin_pri: document.getElementById('cad-data').value,
             ubs_atual: document.getElementById('cad-ubs').value,
             diabetes: document.getElementById('cad-diabetes').checked,
