@@ -12,6 +12,7 @@ from typing import Optional
 class PatientCreateRequest(BaseModel):
     nome: str
     telefone: str
+    nr_carteira: str
     dt_sin_pri: str
     ubs_atual: Optional[str] = None
     diabetes: bool = False
@@ -231,13 +232,14 @@ async def create_patient(req: PatientCreateRequest, db: AsyncSession = Depends(g
     try:
         query = """
             INSERT INTO paciente (
-                nm_usuario, telefone, diabetes, hematolog, hepatopat, renal, hipertensa, acido_pept, auto_imune, status, ubs_atual
+                nm_usuario, nr_carteira, telefone, diabetes, hematolog, hepatopat, renal, hipertensa, acido_pept, auto_imune, status, ubs_atual
             ) VALUES (
-                :nome, :telefone, :diabetes, :hematolog, :hepatopat, :renal, :hipertensa, :acido_pept, :auto_imune, 'ativo', :ubs_atual
+                :nome, :nr_carteira, :telefone, :diabetes, :hematolog, :hepatopat, :renal, :hipertensa, :acido_pept, :auto_imune, 'ativo', :ubs_atual
             ) RETURNING id
         """
         params = {
             "nome": req.nome,
+            "nr_carteira": float(req.nr_carteira),
             "telefone": req.telefone,
             "diabetes": "1" if req.diabetes else "0",
             "hematolog": "1" if req.hematolog else "0",
