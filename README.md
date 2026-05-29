@@ -140,24 +140,66 @@ flowchart TD
 
 ---
 
-## 🗄️ Modelagem de Dados
+🗄️ Modelagem de Dados
 
-> ⚠️ **Atenção:** Esta seção será atualizada em breve.
+### Tabela: `paciente`
+| Coluna | Tipo | Restrições |
+| :--- | :--- | :--- |
+| `id` | `int8` | Chave Primária (PK) |
+| `nm_usuario` | `text` | |
+| `nr_carteira` | `numeric` | |
+| `DT_NASCIMENTO` | `date` | |
+| `cs_sexo` | `text` | |
+| `diabetes` | `text` | |
+| `hematolog` | `text` | |
+| `hepatopat` | `text` | |
+| `renal` | `text` | |
+| `hipertensa` | `text` | |
+| `acido_pept` | `text` | |
+| `auto_imune` | `text` | |
+| `telefone` | `varchar` | |
+| `status` | `text` | |
+| `motivo_inativacao` | `text` | |
+| `ubs_atual` | `text` | |
+| `dt_cadastro` | `timestamptz` | |
 
-### Tabela `paciente`
-⚠️ATUAL (Mudara no futuro)⚠️
-| Coluna |
-| `id_paciente` |
-|  `nr_usuario` |
-| `nr_carteira` |
+### Tabela: `atendimento_paciente`
+| Coluna | Tipo | Restrições |
+| :--- | :--- | :--- |
+| `id` | `int8` | Chave Estrangeira (FK - referencia `paciente.id`) |
+| `nr_atendimento` | `int8` | Chave Primária (PK) |
+| `dt_inicio` | `timestamp` | |
+| `dt_fim` | `timestamp` | |
+| `febre` | `text` | |
+| `mialgia` | `text` | |
+| `cefaleia` | `text` | |
+| `exantema` | `text` | |
+| `vomito` | `text` | |
+| `nausea` | `text` | |
+| `dor_costas` | `text` | |
+| `conjuntvit` | `text` | |
+| `artrite` | `text` | |
+| `artralgia` | `text` | |
+| `dor_retro` | `text` | |
+| `grupo_risco` | `text` | |
+| `dor_abd` | `varchar` | |
+| `sangram` | `varchar` | |
+| `letargia` | `varchar` | |
 
-
-### Tabela `atendimento_paciente`
-⚠️ATUAL (Mudara no futuro)⚠️
-| Coluna |
-| `id_atendimento` |
-| `id_chave estrangeira` |
-| `nr_atendimento` |
+### Tabela: `profissional`
+| Coluna | Tipo | Restrições |
+| :--- | :--- | :--- |
+| `id` | `int4` | Chave Primária (PK) |
+| `nome` | `varchar` | |
+| `carteira` | `varchar` | |
+| `senha_hash` | `varchar` | |
+| `salt` | `varchar` | |
+| `dt_criacao` | `timestamp` | |
+| `ubs` | `text` | |
+| `status` | `text` | |
+| `is_admin` | `bool` | |
+| `pergunta_seguranca` | `text` | |
+| `resposta_seguranca` | `text` | |
 
 
 ---
