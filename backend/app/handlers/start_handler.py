@@ -597,12 +597,11 @@ async def callback_baixar_cartilha(update: Update, context: ContextTypes.DEFAULT
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            "📺 *Guia Clínico — Dengue: Diagnóstico e Manejo Clínico*\n\n"
-            "Assista ao vídeo educativo oficial com orientações sobre cuidados, "
+            "📺 Guia Clínico — Dengue: Diagnóstico e Manejo Clínico\n\n"
+            "Assista ao vídeo educativo com orientações sobre cuidados, "
             "hidratação e sinais de alerta da dengue:\n\n"
             "🔗 https://youtu.be/Zkl3TohLQG8?si=vs0Q_bVzhLRZtVgA"
         ),
-        parse_mode="MarkdownV2",
     )
 
     return ConversationHandler.END
