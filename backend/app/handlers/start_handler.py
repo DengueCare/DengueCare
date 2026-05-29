@@ -66,12 +66,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     await update.message.reply_text(
         f"🦟 *Olá, {nome_esquivado}\\!*\n\n"
         f"Bem\\-vindo ao *DengueCare* — seu assistente de acompanhamento da Dengue\\.\n\n"
+        f"⚠️ *Aviso importante:*\n"
+        f"_Este serviço é um suporte ao acompanhamento médico e não substitui diagnóstico, "
+        f"prescrição ou orientação médica profissional\\. "
+        f"Em caso de emergência, ligue *192* \\(SAMU\\) ou dirija\\-se à UPA mais próxima\\._\n\n"
         f"Para começarmos, preciso identificar seu cadastro\\.\n"
         f"Por favor, digite o seu *número da carteira*:",
         parse_mode="MarkdownV2",
     )
     return AGUARDANDO_CARTEIRA
-
 
 # ==========================================
 # HANDLER: Recebe o nr_carteira para busca
@@ -591,46 +594,16 @@ async def callback_baixar_cartilha(update: Update, context: ContextTypes.DEFAULT
     query = update.callback_query
     await query.answer()
 
-    # Feedback visual imediato para melhorar a UX
-    mensagem_aguarde = await context.bot.send_message(
+    await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="⏳ *Aguarde um momento\\.\\.\\.* Baixando a cartilha oficial do Ministério da Saúde\\. Isso pode levar alguns segundos\\.",
-        parse_mode="MarkdownV2"
+        text=(
+            "📺 *Guia Clínico — Dengue: Diagnóstico e Manejo Clínico*\n\n"
+            "Assista ao vídeo educativo oficial com orientações sobre cuidados, "
+            "hidratação e sinais de alerta da dengue:\n\n"
+            "🔗 https://youtu.be/Zkl3TohLQG8?si=vs0Q_bVzhLRZtVgA"
+        ),
+        parse_mode="MarkdownV2",
     )
-
-    # URL oficial do PDF do Ministério da Saúde (link direto)
-    pdf_url = "https://www.ubec.edu.br/wp-content/uploads/2024/02/CARTILHA.pdf"
-
-    caption = (
-        "📚 *Dengue: Diagnóstico e Manejo Clínico*\n\n"
-        "Aqui está o material oficial do Ministério da Saúde\\. "
-        "Ele contém orientações valiosas sobre cuidados, hidratação e restrições médicas para o seu tratamento\\."
-    )
-
-    try:
-        # Envia o documento aumentando os timeouts de rede
-        await context.bot.send_document(
-            chat_id=update.effective_chat.id,
-            document=pdf_url,
-            caption=caption,
-            parse_mode="MarkdownV2",
-            read_timeout=60,   # Aumenta a tolerância de leitura para 60 segundos
-            write_timeout=60
-        )
-        
-        # Apaga a mensagem de "Aguarde" após o envio bem-sucedido do PDF
-        await context.bot.delete_message(
-            chat_id=update.effective_chat.id,
-            message_id=mensagem_aguarde.message_id
-        )
-        
-    except Exception as e:
-        logger.error(f"Erro ao enviar cartilha: {e}")
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="⚠️ Não foi possível carregar o arquivo no momento\\. Tente novamente mais tarde\\.",
-            parse_mode="MarkdownV2"
-        )
 
     return ConversationHandler.END
 
